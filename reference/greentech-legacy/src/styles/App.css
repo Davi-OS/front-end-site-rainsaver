@@ -1,0 +1,193 @@
+/* frontend/src/App.css */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f0f0;
+    color: #333;
+  }
+  
+  .home-container {
+    text-align: center;
+    padding: 20px;
+  }
+  
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #0288d1;
+    color: #fff;
+    padding: 10px 20px;
+  }
+  
+  .project-name {
+    font-size: 1.5em;
+  }
+  
+  .login-button {
+    background-color: #fff;
+    color: #0288d1;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+  }
+  
+  .login-button:hover {
+    background-color: #e1f5fe;
+  }
+  
+  .main-content {
+    margin-top: 50px;
+  }
+  
+  form {
+    display: flex;
+    flex-direction: column;
+    margin-top: 10px;
+  }
+  
+  input {
+    margin-bottom: 10px;
+    padding: 10px;
+    font-size: 1em;
+  }
+  
+  button[type="submit"] {
+    background-color: #0288d1;
+    color: #fff;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+  }
+  
+  button[type="submit"]:hover {
+    background-color: #0277bd;
+  }
+
+  .register-container {
+    width: 400px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    text-align: center;
+  }
+  
+  .register-container h2 {
+    color: #0288d1;
+  }
+  
+  .register-container input {
+    width: calc(100% - 20px);
+    padding: 10px;
+    margin: 8px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  
+  .register-container .address-fields {
+    margin-bottom: 15px;
+  }
+  
+  .register-container button[type="button"],
+  .register-container button[type="submit"] {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #0288d1;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    font-size: 1em;
+    border-radius: 4px;
+  }
+  
+  .register-container button:hover {
+    background-color: #0277bd;
+  }
+  
+  .link-button {
+  background: none;
+  color: #0288d1;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+}
+
+.form-select {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* Estilos específicos para o <select> */
+.form-select {
+  appearance: none; /* Remove a seta padrão no Chrome e Safari */
+  -webkit-appearance: none; /* Remove a seta no Safari e Chrome em dispositivos iOS */
+  background-color: white;
+  cursor: pointer;
+}
+
+/* Estilo para a seta customizada do <select> */
+.form-select::after {
+  content: '▼';
+  position: absolute;
+  right: 10px;
+  font-size: 12px;
+  color: #555;
+  pointer-events: none;
+}
+/* frontend/src/styles/App.css */
+
+/* Configuração base do header e estilo minimalista */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #0288d1; /* Cor de fundo do cabeçalho */
+  color: #fff;
+  padding: 10px 20px;
+}
+
+.project-name {
+  font-size: 1.5em;
+}
+
+/* Estilo do menu de navegação */
+.nav-menu {
+  display: flex;
+  gap: 15px; /* Espaço entre os botões */
+}
+
+/* Estilo dos botões do nav */
+.nav-menu button {
+  background-color: #fff; /* Cor de fundo branca para contraste */
+  color: #0288d1; /* Cor do texto para combinar com o header */
+  border: 2px solid #0288d1; /* Borda da mesma cor do header */
+  border-radius: 20px; /* Bordas arredondadas para suavidade */
+  padding: 8px 15px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.3s, color 0.3s, transform 0.2s;
+}
+
+/* Efeito de hover nos botões do nav */
+.nav-menu button:hover {
+  background-color: #0288d1; /* Cor de fundo combinando com o header */
+  color: #fff; /* Cor do texto invertida para contraste */
+  transform: scale(1.05); /* Leve aumento no tamanho para destacar */
+}
+
+/* Estilo do conteúdo principal */
+.main-content {
+  padding: 20px;
+  text-align: center;
+}
