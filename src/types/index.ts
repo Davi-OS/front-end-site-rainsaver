@@ -1,5 +1,5 @@
 export type { PublicUser, LoginInput } from './user'
 export type { Address, AddressInput } from './address'
 export type { Station } from './station'
-export type { QuarterResult, PluvialResult, PluvialCalculation } from './pluvial'
+export type { MonthlyCaptation, PluvialEconomy } from './pluvial'
 export type { Db } from './db'

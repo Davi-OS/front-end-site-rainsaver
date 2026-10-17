@@ -1,11 +1,12 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { Address, AddressInput } from '@/types'
 import { useAuth } from '@/auth/useAuth'
 import { Alert, Button, Card, Input, Modal, Tabs, type TabItem } from '@/components/ui'
 import { authErrorMessage } from '@/lib/authErrors'
+import { rainSaverErrorMessage } from '@/lib/apiErrors'
 import { AddressForm } from '@/components/address/AddressForm'
 import { AddressTable } from '@/components/address/AddressTable'
-import { createAddress, deleteAddress, listAddressesByUser, updateAddress } from '@/db/addresses'
+import { createAddress, deleteAddress, listAddresses } from '@/api/rainsaver'
 
 const EMPTY_ADDRESS: AddressInput = { cep: '', logradouro: '', bairro: '', number: '', cidade: '', estado: '' }
 
@@ -89,64 +90,106 @@ function AccountTab() {
   )
 }
 
+function validateAddress(input: AddressInput): string | null {
+  if (!input.logradouro.trim() || !input.number.trim()) return 'Informe o logradouro e o número.'
+  if (!input.cidade.trim() || input.estado.trim().length !== 2) return 'Informe a cidade e a UF (2 letras).'
+  return null
+}
+
 function AddressesTab() {
-  const { user } = useAuth()
-  const userId = user!.id
-  const [addresses, setAddresses] = useState<Address[]>(() => listAddressesByUser(userId))
+  const [addresses, setAddresses] = useState<Address[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingAddress, setEditingAddress] = useState<Address | null>(null)
   const [formValue, setFormValue] = useState<AddressInput>(EMPTY_ADDRESS)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    listAddresses()
+      .then((list) => !cancelled && setAddresses(list))
+      .catch((err) => !cancelled && setLoadError(rainSaverErrorMessage(err)))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const openCreateModal = () => {
-    setEditingAddress(null)
     setFormValue(EMPTY_ADDRESS)
+    setFormError(null)
     setModalOpen(true)
   }
 
-  const openEditModal = (address: Address) => {
-    setEditingAddress(address)
-    setFormValue(address)
-    setModalOpen(true)
-  }
-
-  const handleSave = () => {
-    if (editingAddress) {
-      updateAddress(editingAddress.id, formValue)
-    } else {
-      createAddress(userId, formValue)
+  const handleSave = async () => {
+    const invalid = validateAddress(formValue)
+    if (invalid) {
+      setFormError(invalid)
+      return
     }
-    setAddresses(listAddressesByUser(userId))
-    setModalOpen(false)
+    setFormError(null)
+    setSaving(true)
+    try {
+      const created = await createAddress(formValue)
+      setAddresses((list) => [created, ...(list ?? [])])
+      setModalOpen(false)
+    } catch (err) {
+      setFormError(rainSaverErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleDelete = (address: Address) => {
-    if (!confirm(`Excluir o endereço em ${address.logradouro}, ${address.number}?`)) return
-    deleteAddress(address.id)
-    setAddresses(listAddressesByUser(userId))
+  const handleDelete = async (address: Address) => {
+    if (!confirm(`Excluir o endereço em ${address.logradouro}, ${address.number}? Os cálculos dele também serão apagados.`)) return
+    setActionError(null)
+    setDeletingId(address.id)
+    try {
+      await deleteAddress(address.id)
+      setAddresses((list) => (list ?? []).filter((a) => a.id !== address.id))
+    } catch (err) {
+      setActionError(rainSaverErrorMessage(err))
+    } finally {
+      setDeletingId(null)
+    }
   }
+
+  if (loadError) return <Alert variant="error">{loadError}</Alert>
+  if (!addresses) return <p className="py-8 text-center text-sm text-slate-500">Carregando endereços…</p>
 
   return (
     <div className="flex flex-col gap-4">
+      {actionError && <Alert variant="error">{actionError}</Alert>}
       <div className="flex justify-end">
         <Button onClick={openCreateModal}>Novo endereço</Button>
       </div>
 
-      <AddressTable addresses={addresses} onEdit={openEditModal} onDelete={handleDelete} />
+      <AddressTable addresses={addresses} onDelete={handleDelete} deletingId={deletingId} />
 
       <Modal
-        title={editingAddress ? 'Editar endereço' : 'Novo endereço'}
+        title="Novo endereço"
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => !saving && setModalOpen(false)}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
+            <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>
               Cancelar
             </Button>
-            <Button onClick={handleSave}>Salvar</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Localizando endereço…' : 'Salvar'}
+            </Button>
           </>
         }
       >
-        <AddressForm value={formValue} onChange={setFormValue} />
+        <div className="flex flex-col gap-4">
+          {formError && <Alert variant="error">{formError}</Alert>}
+          <AddressForm value={formValue} onChange={setFormValue} />
+          <p className="text-xs text-slate-500">
+            A localização é obtida automaticamente a partir do endereço, para escolher a estação meteorológica mais
+            próxima.
+          </p>
+        </div>
       </Modal>
     </div>
   )

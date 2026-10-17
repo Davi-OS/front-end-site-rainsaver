@@ -1,6 +1,6 @@
 # front-end-site-rainsaver — Documentação Técnica
 
-> ⚠️ **Integração parcial.** A **autenticação é real**: login, refresh, logout e troca de senha falam com o `go-auth-service` (JWT com `aud=rain-saver`). **Endereços, estações e cálculo pluvial ainda são simulados** em `localStorage` — a migração para o backend `rain-saver` é a próxima etapa (fase 4b). Além do auth, a única chamada de rede é para a API pública ViaCEP.
+> **Integrado aos backends.** Autenticação via `go-auth-service` (JWT com `aud=rain-saver`); endereços e cálculo pluvial via `rain-saver`. **Só o mapa/ranking de estações do Dashboard continua simulado** em `localStorage` (`DEFAULT_STATIONS`). Além dos backends, a única chamada de rede é para a API pública ViaCEP.
 
 ## Stack / Tooling
 
@@ -35,7 +35,8 @@ src/
   index.css          — import do Tailwind + tokens @theme
   config.ts          — base URLs dos backends (VITE_*) e o sistema/audience pedido no login
   api/               — http.ts (fetch + ApiError/NetworkError), tokens.ts (localStorage + decode do JWT),
-                       auth.ts (endpoints do go-auth-service), session.ts (authorized(): refresh automático)
+                       auth.ts (endpoints do go-auth-service), session.ts (authorized(): refresh automático),
+                       rainsaver.ts (endereços e economia pluvial no rain-saver)
   auth/               — AuthContext.tsx, context.ts, errors.ts, useAuth.ts, ProtectedRoute.tsx
   pages/
     auth/LoginPage.tsx
@@ -46,12 +47,12 @@ src/
     ui/        — primitivos: Button, Input, Select, Card, Alert, Modal, Tabs (barrel em index.ts)
     address/   — AddressForm.tsx, AddressTable.tsx
     map/       — StationsMap.tsx (Leaflet)
-  db/          — dados ainda simulados: storage.ts, addresses.ts, calculations.ts, stations.ts, seed.ts
-  lib/         — pluvial.ts (motor de cálculo), format.ts, validation.ts, viaCep.ts, authErrors.ts (mensagens pt-BR)
+  db/          — dados ainda simulados (só estações do Dashboard): storage.ts, stations.ts, seed.ts
+  lib/         — format.ts, validation.ts, viaCep.ts, authErrors.ts / apiErrors.ts (mensagens pt-BR)
   types/       — user.ts, address.ts, station.ts, pluvial.ts, db.ts, index.ts
 ```
 
-`src/api/` fala com o `go-auth-service`; `src/db/` continua sendo o "backend fake" (funções síncronas sobre um blob JSON em `localStorage`) para endereços, estações e cálculos.
+`src/api/` fala com o `go-auth-service` e o `rain-saver`; `src/db/` só guarda o dataset simulado de estações do Dashboard.
 
 ## Rotas
 
@@ -84,23 +85,10 @@ Configuração em `.env` (ver `.env.example`; valores embutidos no build pelo Vi
 ### Configurações (`SettingsPage.tsx`)
 Duas abas:
 - **Conta**: mostra o email da conta e permite trocar a senha (ver Autenticação). Nome/sobrenome/gênero saíram da UI: o `go-auth-service` só guarda email; onde o perfil vai morar será decidido quando houver necessidade.
-- **Endereços**: CRUD completo via `src/db/addresses.ts`, em um `Modal` reaproveitando `AddressForm`.
+- **Endereços**: listar, criar e excluir via `rain-saver` (`api/rainsaver.ts`). O formulário (`AddressForm`) preenche logradouro/bairro/cidade/UF pelo ViaCEP e **não pede coordenadas**: o backend geocodifica (Nominatim) e responde 422 se não localizar o endereço. Não há edição — os cálculos guardam a estação escolhida para a localização original; para corrigir, exclui e cria de novo (excluir apaga também os cálculos do endereço).
 
 ### Calculadora Pluvial (`PluvialCalculatorPage.tsx`)
-Lógica real, sobre **dados de entrada totalmente mockados**:
-1. Usuário escolhe um endereço salvo + área do telhado (m²) + tarifa de água (R$/m³).
-2. `findStationByEstado(estado)` busca uma estação de referência **fixa por estado** em `DEFAULT_STATIONS` (`src/db/seed.ts`) — dataset escrito à mão, uma estação por capital, com chuva mensal "aproximação plausível" (comentário no código diz textualmente que não é meteorologicamente autoritativo).
-3. Motor de cálculo, `calculatePluvialEconomy()` (`src/lib/pluvial.ts`):
-   ```ts
-   export const RUNOFF_EFFICIENCY = 0.8
-   export function calculatePluvialEconomy({ roofAreaM2, monthlyRainfallMm, tariffPerM3, efficiency = RUNOFF_EFFICIENCY, ... }) {
-     // por trimestre:
-     // litersCaptured = roofAreaM2 * rainfallMm(trimestre) * efficiency
-     // savingsBRL = (litersCaptured / 1000) * tariffPerM3
-   }
-   ```
-   Note a diferença em relação ao backend real (`rain-saver`): aqui há um coeficiente de eficiência de 0.8 aplicado, e a agregação é **trimestral** (4 blocos: Jan-Mar, Abr-Jun, Jul-Set, Out-Dez) + total anual — o `rain-saver` real não aplica eficiência (1mm/m² = 1L exato) e agrega **mensal**.
-4. `src/db/calculations.ts` define `saveCalculation()`/`listCalculationsByUser()` para um histórico, mas é **código morto** — `PluvialCalculatorPage.tsx` nunca chama `saveCalculation`, então o resultado é mostrado mas não persistido/rastreado.
+O cálculo é feito pelo **backend**: `POST /enderecos/:id/pluvial-economy` com a área do telhado devolve a captação **mensal** dos últimos 12 meses medidos pela estação INMET mais próxima do endereço (`station_code`, `distance_km`), com `litros = área(m²) × chuva(mm)` — sem coeficiente de eficiência. Ao escolher um endereço, o último cálculo dele é carregado (`GET`, 404 = nenhum ainda). A tarifa (R$/m³) é só apresentação: a economia em R$ é `litros / 1000 × tarifa`, calculada no client. O antigo motor trimestral com eficiência de 0,8 (`lib/pluvial.ts`) foi removido.
 
 ### Dashboard — Estações Meteorológicas (`DashboardPage.tsx`)
 Mostra o mesmo dataset mockado `DEFAULT_STATIONS` (27 entradas, uma por capital + DF) em:
@@ -128,7 +116,7 @@ Roteada em `/solar` e listada na navegação lateral, mas sem inputs nem cálcul
 ## Integração com API — o que existe hoje
 
 - `go-auth-service`: autenticação completa (seção acima), via `src/api/`.
-- `rain-saver`: ainda nenhuma chamada — endereços, estações e cálculo seguem em `src/db/*` sobre `localStorage`. `RAINSAVER_API_URL` e `authorized()` já estão prontos para a fase 4b.
+- `rain-saver` (`api/rainsaver.ts`, sempre via `authorized()`): `/enderecos` (listar, criar, excluir) e `/enderecos/:id/pluvial-economy` (calcular, último cálculo). Erros (403 sem permissão, 422 endereço não localizado, 503 geocodificação/estações indisponíveis) viram mensagens em `lib/apiErrors.ts`.
 - ViaCEP: `src/lib/viaCep.ts` (`fetch('https://viacep.com.br/ws/{cep}/json/')`).
 
 ## Estilo
@@ -159,7 +147,7 @@ Projeto anterior ("GreenTech"), mantido só como referência histórica — **n�
 
 ## Próximos passos (integração real)
 
-1. ~~Login real contra o `go-auth-service`~~ — feito (seção Autenticação).
-2. Trocar `src/db/addresses.ts` por chamadas ao `rain-saver` (`/enderecos`) via `authorized()`. O `rain-saver` exige latitude/longitude e não tem `bairro` nem edição de endereço; decisão tomada: **geocodificar no backend** a partir de CEP/endereço.
-3. Remover o dataset mockado de estações (`DEFAULT_STATIONS`) em favor de dados reais do `rain-saver` (hoje não há endpoint de listagem de estações).
-4. Parar de calcular a economia pluvial no client e exibir o resultado de `/enderecos/:id/pluvial-economy` (mensal, sem coeficiente de eficiência, sem tarifa — alinhar a apresentação).
+1. ~~Login real contra o `go-auth-service`~~ — feito.
+2. ~~Endereços e cálculo pluvial via `rain-saver`~~ — feito (geocodificação no backend).
+3. Dashboard: trocar o dataset mockado de estações (`DEFAULT_STATIONS`) por dados reais do `rain-saver` — exige um endpoint de listagem de estações, que ainda não existe.
+4. Deploy: publicar os backends e definir `VITE_AUTH_API_URL`/`VITE_RAINSAVER_API_URL` no build do GitHub Pages (ver Build & Deploy).
