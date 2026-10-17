@@ -1,6 +1,6 @@
 # front-end-site-rainsaver — Documentação Técnica
 
-> ⚠️ **Este frontend não fala com nenhum backend real.** Toda a "persistência" (usuários, sessão, endereços, estações meteorológicas, cálculos) é simulada inteiramente em `localStorage` no navegador. Login/registro comparam senha em texto puro — **não há JWT, não há hashing, não há chamada de rede para o `rain-saver`**. A única requisição de rede real do app inteiro é para a API pública ViaCEP (autocomplete de CEP). Trate tudo neste documento como um protótipo client-side navegável, não como um cliente do backend `rain-saver` real.
+> ⚠️ **Integração parcial.** A **autenticação é real**: login, refresh, logout e troca de senha falam com o `go-auth-service` (JWT com `aud=rain-saver`). **Endereços, estações e cálculo pluvial ainda são simulados** em `localStorage` — a migração para o backend `rain-saver` é a próxima etapa (fase 4b). Além do auth, a única chamada de rede é para a API pública ViaCEP.
 
 ## Stack / Tooling
 
@@ -33,9 +33,12 @@ src/
   App.tsx            — tabela de rotas (fonte única de verdade de routing)
   main.tsx           — render do root React
   index.css          — import do Tailwind + tokens @theme
-  auth/               — AuthContext.tsx, context.ts, useAuth.ts, ProtectedRoute.tsx
+  config.ts          — base URLs dos backends (VITE_*) e o sistema/audience pedido no login
+  api/               — http.ts (fetch + ApiError/NetworkError), tokens.ts (localStorage + decode do JWT),
+                       auth.ts (endpoints do go-auth-service), session.ts (authorized(): refresh automático)
+  auth/               — AuthContext.tsx, context.ts, errors.ts, useAuth.ts, ProtectedRoute.tsx
   pages/
-    auth/LoginPage.tsx, auth/RegisterPage.tsx
+    auth/LoginPage.tsx
     DashboardPage.tsx, PluvialCalculatorPage.tsx, SolarCalculatorPage.tsx, SettingsPage.tsx
     RootRedirect.tsx, NotFoundPage.tsx
   components/
@@ -43,12 +46,12 @@ src/
     ui/        — primitivos: Button, Input, Select, Card, Alert, Modal, Tabs (barrel em index.ts)
     address/   — AddressForm.tsx, AddressTable.tsx
     map/       — StationsMap.tsx (Leaflet)
-  db/          — o "backend fake": storage.ts, users.ts, addresses.ts, calculations.ts, stations.ts, seed.ts
-  lib/         — pluvial.ts (motor de cálculo), format.ts, validation.ts, viaCep.ts (única chamada de rede real)
+  db/          — dados ainda simulados: storage.ts, addresses.ts, calculations.ts, stations.ts, seed.ts
+  lib/         — pluvial.ts (motor de cálculo), format.ts, validation.ts, viaCep.ts, authErrors.ts (mensagens pt-BR)
   types/       — user.ts, address.ts, station.ts, pluvial.ts, db.ts, index.ts
 ```
 
-Não existe `services/`/`api/` para um backend real — quem cumpre esse papel é `src/db/` (funções TS síncronas lendo/escrevendo um blob JSON único em `localStorage`).
+`src/api/` fala com o `go-auth-service`; `src/db/` continua sendo o "backend fake" (funções síncronas sobre um blob JSON em `localStorage`) para endereços, estações e cálculos.
 
 ## Rotas
 
@@ -56,32 +59,31 @@ Não existe `services/`/`api/` para um backend real — quem cumpre esse papel �
 |---|---|---|---|
 | `/` | `RootRedirect` — redireciona para `/dashboard` se autenticado, senão `/login` | n/a | nenhum |
 | `/login` | `LoginPage` | não | `AuthLayout` |
-| `/register` | `RegisterPage` | não | `AuthLayout` |
 | `/dashboard` | `DashboardPage` | **sim** | `AppLayout` |
 | `/pluvial` | `PluvialCalculatorPage` | **sim** | `AppLayout` |
 | `/solar` | `SolarCalculatorPage` | **sim** | `AppLayout` |
 | `/settings` | `SettingsPage` | **sim** | `AppLayout` |
 | `*` | `NotFoundPage` | não | nenhum |
 
-Proteção via `<Route element={<ProtectedRoute />}>` envolvendo o grupo `AppLayout`, checando `useAuth().isAuthenticated` e redirecionando para `/login` (preservando a rota tentada no state do router).
+Proteção via `<Route element={<ProtectedRoute />}>` envolvendo o grupo `AppLayout`: enquanto a sessão salva é validada (`status === 'loading'`) mostra um spinner; se anônimo, redireciona para `/login` preservando a rota tentada no state do router. Não há cadastro público: contas são criadas por um administrador da organização (`POST /orgs/{orgID}/users` no `go-auth-service`).
 
-## "Autenticação" (mockada)
+## Autenticação (go-auth-service)
 
-- `src/db/storage.ts` — chaves usadas: `localStorage['rainsaver:db:v1']` (banco inteiro) e `localStorage['rainsaver:session:v1']` (sessão).
-- **Login** (`verifyCredentials` em `src/db/users.ts`): comparação de senha **em texto puro** (`user.password !== password`) contra o array de usuários no blob localStorage. Sem hashing, sem token — sucesso grava `{ userId }` em `SESSION_KEY`.
-- **Registro** (`createUser`): checa email duplicado, gera `crypto.randomUUID()`, cria o usuário + um endereço vinculado, loga automaticamente.
-- **Logout**: `setSession(null)` (remove a chave), limpa o state React, navega para `/login`.
-- **Sem JWT, sem expiração/refresh, sem header Authorization** — não existe nada para anexar, porque não existe requisição de API autenticada nenhuma.
-- `AuthProvider` (`src/auth/AuthContext.tsx`) resolve o usuário atual lendo a sessão do localStorage a cada carregamento de página.
+Configuração em `.env` (ver `.env.example`; valores embutidos no build pelo Vite): `VITE_AUTH_API_URL` (default `http://localhost:8080`) e `VITE_RAINSAVER_API_URL` (default `http://localhost:8081`). Os backends precisam liberar a origem do front em `CORS_ALLOWED_ORIGINS`.
+
+- **Login** (`api/auth.ts`): `POST /login` com `system: "rain-saver"`. Se a conta pertence a várias organizações, o servidor responde 409 `org_required` e a `LoginPage` mostra um seletor de organização e reenvia com `org`. Um token **sem claim `org`** (conta sem acesso ao RainSaver) é recusado no front (`NoAccessError`) e revogado. Depois do login, `GET /me` traz `{id, email}`.
+- **Tokens** (`api/tokens.ts`): par access/refresh em `localStorage['rainsaver:tokens:v1']`, compartilhado entre abas (logout em uma aba encerra as outras via evento `storage`). Trade-off: exposto a XSS; a alternativa seria refresh token em cookie httpOnly, que o `go-auth-service` ainda não suporta.
+- **Refresh** (`api/session.ts`): `authorized(call)` renova o access token se faltarem <30s para expirar e, num 401, faz **um** refresh e repete a chamada. Refreshes concorrentes são unificados (o refresh token é rotacionado a cada uso; duas renovações paralelas derrubariam a sessão). Se a renovação falhar, a sessão expira: tokens limpos, `onSessionExpired` notifica o `AuthProvider` e o login mostra "Sua sessão expirou".
+- **Inicialização**: com tokens salvos, o `AuthProvider` começa em `loading` e valida a sessão com `GET /me` (via `authorized`, então renova se preciso).
+- **Logout**: limpa a sessão local e chama `POST /logout` (revoga o refresh token e o access token no servidor) em best effort.
+- **Troca de senha** (aba Conta em Configurações): `POST /me/password`; o servidor encerra **todas** as sessões, então o front volta ao login com aviso.
+- Mensagens de erro para o usuário: `lib/authErrors.ts`.
 
 ## Funcionalidades
 
-### Login / Registro
-Descrito acima. Registro também coleta endereço via `AddressForm` (que usa o ViaCEP real para autocomplete por CEP).
-
-### Configurações / Perfil (`SettingsPage.tsx`)
+### Configurações (`SettingsPage.tsx`)
 Duas abas:
-- **Perfil**: edita nome via `useAuth().updateProfile()` → `updateUserProfile()` (localStorage).
+- **Conta**: mostra o email da conta e permite trocar a senha (ver Autenticação). Nome/sobrenome/gênero saíram da UI: o `go-auth-service` só guarda email; onde o perfil vai morar será decidido quando houver necessidade.
 - **Endereços**: CRUD completo via `src/db/addresses.ts`, em um `Modal` reaproveitando `AddressForm`.
 
 ### Calculadora Pluvial (`PluvialCalculatorPage.tsx`)
@@ -125,11 +127,9 @@ Roteada em `/solar` e listada na navegação lateral, mas sem inputs nem cálcul
 
 ## Integração com API — o que existe hoje
 
-Não há client HTTP tipado, nem base URL configurável, nem `.env`/variável de ambiente de backend neste repositório (diferente do app legado, que usava `axios` + `.env`). O único código que faz `fetch` é `src/lib/viaCep.ts`:
-```ts
-async function lookupCep(cep: string) { /* fetch('https://viacep.com.br/ws/{cep}/json/') */ }
-```
-Tudo o mais é `src/db/*` operando sobre `JSON.parse(localStorage.getItem(...))`.
+- `go-auth-service`: autenticação completa (seção acima), via `src/api/`.
+- `rain-saver`: ainda nenhuma chamada — endereços, estações e cálculo seguem em `src/db/*` sobre `localStorage`. `RAINSAVER_API_URL` e `authorized()` já estão prontos para a fase 4b.
+- ViaCEP: `src/lib/viaCep.ts` (`fetch('https://viacep.com.br/ws/{cep}/json/')`).
 
 ## Estilo
 
@@ -155,11 +155,11 @@ Projeto anterior ("GreenTech"), mantido só como referência histórica — **n�
 - **Triggers**: push em `main` + `workflow_dispatch` manual.
 - **Job build**: checkout → `setup-node@v4` (Node 24, cache npm) → `npm ci` → `npm run build` (`tsc -b && vite build`, gera `dist/` com base `/front-end-site-rainsaver/`) → `cp dist/index.html dist/404.html` (fallback de SPA, já que GitHub Pages não tem rewrite server-side) → `configure-pages@v5` → `upload-pages-artifact@v3`.
 - **Job deploy**: `deploy-pages@v4`, ambiente `github-pages`.
+- ⚠️ O build ainda não define `VITE_AUTH_API_URL`/`VITE_RAINSAVER_API_URL`, então o site publicado apontaria para `localhost`. Antes de levar esta integração para `main`, os backends precisam estar publicados e as URLs entrar no `env:` do passo de build.
 
 ## Próximos passos (integração real)
 
-`src/db/*` é o ponto de integração natural para plugar o backend `rain-saver` de verdade: as assinaturas de função (`createUser`, `verifyCredentials`, `listAddressesByUser`, `saveCalculation`, `listStations`, etc.) já espelham o que os endpoints reais oferecem. Para integrar de fato seria necessário:
-1. Substituir a "autenticação" local por login real contra o `go-auth-service` (via `rain-saver` ou diretamente), guardando o JWT (não mais um `userId` puro) e anexando `Authorization: Bearer`.
-2. Trocar as funções de `src/db/` por chamadas HTTP ao `rain-saver` (`/enderecos`, `/enderecos/:id/pluvial-economy`), com uma base URL configurável via env var.
-3. Remover o dataset mockado de estações (`DEFAULT_STATIONS`) em favor dos dados reais servidos pelo `rain-saver` (que já busca a estação mais próxima via Haversine e usa dados agregados pelo `inmet-rain-ingestor`).
-4. Ajustar a fórmula do cálculo pluvial no frontend para bater com a do backend real (sem coeficiente de eficiência, agregação mensal em vez de trimestral) — ou simplesmente parar de calcular no client e exibir o resultado que a API já retorna.
+1. ~~Login real contra o `go-auth-service`~~ — feito (seção Autenticação).
+2. Trocar `src/db/addresses.ts` por chamadas ao `rain-saver` (`/enderecos`) via `authorized()`. O `rain-saver` exige latitude/longitude e não tem `bairro` nem edição de endereço; decisão tomada: **geocodificar no backend** a partir de CEP/endereço.
+3. Remover o dataset mockado de estações (`DEFAULT_STATIONS`) em favor de dados reais do `rain-saver` (hoje não há endpoint de listagem de estações).
+4. Parar de calcular a economia pluvial no client e exibir o resultado de `/enderecos/:id/pluvial-economy` (mensal, sem coeficiente de eficiência, sem tarifa — alinhar a apresentação).

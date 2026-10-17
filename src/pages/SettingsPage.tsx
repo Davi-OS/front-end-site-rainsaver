@@ -1,35 +1,91 @@
 import { useState, type FormEvent } from 'react'
 import type { Address, AddressInput } from '@/types'
 import { useAuth } from '@/auth/useAuth'
-import { Button, Card, Input, Modal, Tabs, type TabItem } from '@/components/ui'
+import { Alert, Button, Card, Input, Modal, Tabs, type TabItem } from '@/components/ui'
+import { authErrorMessage } from '@/lib/authErrors'
 import { AddressForm } from '@/components/address/AddressForm'
 import { AddressTable } from '@/components/address/AddressTable'
 import { createAddress, deleteAddress, listAddressesByUser, updateAddress } from '@/db/addresses'
 
 const EMPTY_ADDRESS: AddressInput = { cep: '', logradouro: '', bairro: '', number: '', cidade: '', estado: '' }
 
-function ProfileTab() {
-  const { user, updateProfile } = useAuth()
-  const [firstName, setFirstName] = useState(user?.firstName ?? '')
-  const [lastName, setLastName] = useState(user?.lastName ?? '')
-  const [saved, setSaved] = useState(false)
+const MIN_PASSWORD_LENGTH = 10
 
-  const handleSubmit = (event: FormEvent) => {
+function AccountTab() {
+  const { user, changePassword } = useAuth()
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    updateProfile({ firstName, lastName })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setError(null)
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(`A nova senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`)
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('A confirmação não confere com a nova senha.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      // On success the session ends and the route guard redirects to /login.
+      await changePassword(currentPassword, newPassword)
+    } catch (err) {
+      setError(authErrorMessage(err))
+      setSubmitting(false)
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex max-w-sm flex-col gap-4">
-      <Input label="Nome" name="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-      <Input label="Sobrenome" name="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-      <div className="flex items-center gap-3">
-        <Button type="submit">Salvar</Button>
-        {saved && <span className="text-sm text-emerald-600">Salvo!</span>}
+    <div className="flex max-w-sm flex-col gap-6">
+      <div>
+        <span className="text-sm font-medium text-slate-700">Email</span>
+        <p className="text-sm text-slate-900">{user?.email}</p>
       </div>
-    </form>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <h2 className="text-sm font-semibold text-slate-900">Alterar senha</h2>
+        {error && <Alert variant="error">{error}</Alert>}
+        <Input
+          label="Senha atual"
+          name="currentPassword"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+        />
+        <Input
+          label="Nova senha"
+          name="newPassword"
+          type="password"
+          autoComplete="new-password"
+          required
+          minLength={MIN_PASSWORD_LENGTH}
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+        />
+        <Input
+          label="Confirmar nova senha"
+          name="confirmPassword"
+          type="password"
+          autoComplete="new-password"
+          required
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+        />
+        <p className="text-xs text-slate-500">Ao alterar a senha, todas as sessões são encerradas.</p>
+        <div>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? 'Alterando…' : 'Alterar senha'}
+          </Button>
+        </div>
+      </form>
+    </div>
   )
 }
 
@@ -97,10 +153,10 @@ function AddressesTab() {
 }
 
 export function SettingsPage() {
-  const [activeKey, setActiveKey] = useState('profile')
+  const [activeKey, setActiveKey] = useState('account')
 
   const items: TabItem[] = [
-    { key: 'profile', label: 'Perfil', content: <ProfileTab /> },
+    { key: 'account', label: 'Conta', content: <AccountTab /> },
     { key: 'addresses', label: 'Endereços', content: <AddressesTab /> },
   ]
 

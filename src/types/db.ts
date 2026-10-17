@@ -1,15 +1,11 @@
-import type { User } from './user'
 import type { Address } from './address'
 import type { Station } from './station'
 import type { PluvialCalculation } from './pluvial'
 
+// Mocked data still kept in localStorage until it moves to the rain-saver
+// backend. Accounts and sessions live in go-auth-service.
 export interface Db {
-  users: User[]
   addresses: Address[]
   stations: Station[]
   calculations: PluvialCalculation[]
-}
-
-export interface Session {
-  userId: string
 }

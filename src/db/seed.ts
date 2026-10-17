@@ -35,7 +35,6 @@ export const DEFAULT_STATIONS: Station[] = [
 
 export function createInitialDb(): Db {
   return {
-    users: [],
     addresses: [],
     stations: DEFAULT_STATIONS,
     calculations: [],

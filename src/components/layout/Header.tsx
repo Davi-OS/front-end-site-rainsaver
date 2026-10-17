@@ -6,8 +6,8 @@ export function Header() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/login')
   }
 
@@ -15,7 +15,7 @@ export function Header() {
     <header className="fixed top-0 right-0 left-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
       <span className="text-lg font-semibold text-brand-800">RainSaver</span>
       <div className="flex items-center gap-4">
-        {user && <span className="text-sm text-slate-600">Olá, {user.firstName}</span>}
+        {user && <span className="text-sm text-slate-600">{user.email}</span>}
         <button
           type="button"
           onClick={handleLogout}
