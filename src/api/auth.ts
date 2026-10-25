@@ -25,6 +25,14 @@ export class OrgRequiredError extends Error {
   }
 }
 
+/** The password was set by an admin (or provisioned): it must be replaced before logging in. */
+export class PasswordChangeRequiredError extends Error {
+  constructor() {
+    super('Defina uma nova senha para continuar.')
+    this.name = 'PasswordChangeRequiredError'
+  }
+}
+
 const toPair = (r: TokenPairResponse): TokenPair => ({ accessToken: r.access_token, refreshToken: r.refresh_token })
 
 export async function login(email: string, password: string, org?: string): Promise<TokenPair> {
@@ -35,6 +43,9 @@ export async function login(email: string, password: string, org?: string): Prom
     const data = err instanceof ApiError ? (err.body as { error?: string; orgs?: OrgChoice[] } | undefined) : undefined
     if (err instanceof ApiError && err.status === 409 && data?.error === 'org_required') {
       throw new OrgRequiredError(data.orgs ?? [])
+    }
+    if (err instanceof ApiError && err.status === 403 && data?.error === 'password_change_required') {
+      throw new PasswordChangeRequiredError()
     }
     throw err
   }
@@ -67,5 +78,17 @@ export async function changePassword(accessToken: string, currentPassword: strin
     method: 'POST',
     token: accessToken,
     body: { current_password: currentPassword, new_password: newPassword },
+  })
+}
+
+/** Replaces a password without a session (after password_change_required); every session ends. */
+export async function changePasswordWithCredentials(
+  email: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await requestJSON<void>(`${AUTH_API_URL}/password/change`, {
+    method: 'POST',
+    body: { email, current_password: currentPassword, new_password: newPassword },
   })
 }

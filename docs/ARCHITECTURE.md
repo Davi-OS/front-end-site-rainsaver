@@ -70,8 +70,9 @@ Proteção via `<Route element={<ProtectedRoute />}>` envolvendo o grupo `AppLay
 
 ## Autenticação (go-auth-service)
 
-Configuração em `.env` (ver `.env.example`; valores embutidos no build pelo Vite): `VITE_AUTH_API_URL` (default `http://localhost:8080`) e `VITE_RAINSAVER_API_URL` (default `http://localhost:8081`). Os backends precisam liberar a origem do front em `CORS_ALLOWED_ORIGINS`.
+Configuração em `.env` (ver `.env.example`; valores embutidos no build pelo Vite): `VITE_AUTH_API_URL` (default `http://localhost:8080`) e `VITE_RAINSAVER_API_URL` (default `http://localhost:8081`). Em produção o auth roda na Azure (`https://ca-auth.lemonmoss-8726f7e4.northcentralus.azurecontainerapps.io`). O auth libera a origem pelas `web_origins` do sistema `rain-saver` (`deploy/auth-system.json` do rain-saver, que já lista `https://davi-os.github.io`), e o rain-saver libera pelo `CORS_ALLOWED_ORIGINS` dele.
 
+- **Senha definida pelo admin** (`LoginPage`): se o login responde 403 `password_change_required` (`PasswordChangeRequiredError`), a mesma tela pede nova senha + confirmação (política de `lib/validation.ts`: 10–128 caracteres), chama `POST /password/change {email, current_password, new_password}` (sem sessão) e loga com a nova senha. 403 `initial_password_expired` só mostra a mensagem: a senha inicial venceu e o admin precisa redefinir.
 - **Login** (`api/auth.ts`): `POST /login` com `system: "rain-saver"`. Se a conta pertence a várias organizações, o servidor responde 409 `org_required` e a `LoginPage` mostra um seletor de organização e reenvia com `org`. Um token **sem claim `org`** (conta sem acesso ao RainSaver) é recusado no front (`NoAccessError`) e revogado. Depois do login, `GET /me` traz `{id, email}`.
 - **Tokens** (`api/tokens.ts`): par access/refresh em `localStorage['rainsaver:tokens:v1']`, compartilhado entre abas (logout em uma aba encerra as outras via evento `storage`). Trade-off: exposto a XSS; a alternativa seria refresh token em cookie httpOnly, que o `go-auth-service` ainda não suporta.
 - **Refresh** (`api/session.ts`): `authorized(call)` renova o access token se faltarem <30s para expirar e, num 401, faz **um** refresh e repete a chamada. Refreshes concorrentes são unificados (o refresh token é rotacionado a cada uso; duas renovações paralelas derrubariam a sessão). Se a renovação falhar, a sessão expira: tokens limpos, `onSessionExpired` notifica o `AuthProvider` e o login mostra "Sua sessão expirou".
@@ -143,11 +144,11 @@ Projeto anterior ("GreenTech"), mantido só como referência histórica — **n�
 - **Triggers**: push em `main` + `workflow_dispatch` manual.
 - **Job build**: checkout → `setup-node@v4` (Node 24, cache npm) → `npm ci` → `npm run build` (`tsc -b && vite build`, gera `dist/` com base `/front-end-site-rainsaver/`) → `cp dist/index.html dist/404.html` (fallback de SPA, já que GitHub Pages não tem rewrite server-side) → `configure-pages@v5` → `upload-pages-artifact@v3`.
 - **Job deploy**: `deploy-pages@v4`, ambiente `github-pages`.
-- ⚠️ O build ainda não define `VITE_AUTH_API_URL`/`VITE_RAINSAVER_API_URL`, então o site publicado apontaria para `localhost`. Antes de levar esta integração para `main`, os backends precisam estar publicados e as URLs entrar no `env:` do passo de build.
+- **URLs dos backends**: o passo de build lê as **variáveis do repositório** `VITE_AUTH_API_URL` e `VITE_RAINSAVER_API_URL` (Settings → Secrets and variables → Actions → Variables). São variáveis, não secrets, porque acabam no bundle. O `vite.config.ts` faz um build de produção sem `VITE_AUTH_API_URL` falhar, para o site nunca ir ao ar apontando para `localhost`. Enquanto o rain-saver não tiver deploy, `VITE_RAINSAVER_API_URL` fica vazia: o login funciona, mas endereços e cálculo pluvial não.
 
 ## Próximos passos (integração real)
 
 1. ~~Login real contra o `go-auth-service`~~ — feito.
 2. ~~Endereços e cálculo pluvial via `rain-saver`~~ — feito (geocodificação no backend).
 3. Dashboard: trocar o dataset mockado de estações (`DEFAULT_STATIONS`) por dados reais do `rain-saver` — exige um endpoint de listagem de estações, que ainda não existe.
-4. Deploy: publicar os backends e definir `VITE_AUTH_API_URL`/`VITE_RAINSAVER_API_URL` no build do GitHub Pages (ver Build & Deploy).
+4. Deploy: cadastrar o sistema `rain-saver` no auth da Azure (`POST /systems`), publicar o rain-saver e preencher as variáveis do repositório (ver Build & Deploy). Domínio próprio pode esperar até abrir para usuários reais. Se o ambiente da Azure for recriado, o FQDN muda, e com ele o `AUTH_ISSUER`, as `web_origins` e as `VITE_*`.

@@ -4,13 +4,12 @@ import { useAuth } from '@/auth/useAuth'
 import { Alert, Button, Card, Input, Modal, Tabs, type TabItem } from '@/components/ui'
 import { authErrorMessage } from '@/lib/authErrors'
 import { rainSaverErrorMessage } from '@/lib/apiErrors'
+import { MIN_PASSWORD_LENGTH, newPasswordError } from '@/lib/validation'
 import { AddressForm } from '@/components/address/AddressForm'
 import { AddressTable } from '@/components/address/AddressTable'
 import { createAddress, deleteAddress, listAddresses } from '@/api/rainsaver'
 
 const EMPTY_ADDRESS: AddressInput = { cep: '', logradouro: '', bairro: '', number: '', cidade: '', estado: '' }
-
-const MIN_PASSWORD_LENGTH = 10
 
 function AccountTab() {
   const { user, changePassword } = useAuth()
@@ -23,12 +22,9 @@ function AccountTab() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setError(null)
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      setError(`A nova senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`)
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      setError('A confirmação não confere com a nova senha.')
+    const invalid = newPasswordError(newPassword, confirmPassword)
+    if (invalid) {
+      setError(invalid)
       return
     }
     setSubmitting(true)

@@ -1,11 +1,16 @@
-import { OrgRequiredError } from '@/api/auth'
+import { OrgRequiredError, PasswordChangeRequiredError } from '@/api/auth'
 import { ApiError, NetworkError } from '@/api/http'
 import { SessionExpiredError } from '@/api/session'
 import { NoAccessError } from '@/auth/errors'
 
 /** User-facing message (pt-BR) for errors coming out of the auth flows. */
 export function authErrorMessage(err: unknown): string {
-  if (err instanceof NoAccessError || err instanceof SessionExpiredError || err instanceof OrgRequiredError) {
+  if (
+    err instanceof NoAccessError ||
+    err instanceof SessionExpiredError ||
+    err instanceof OrgRequiredError ||
+    err instanceof PasswordChangeRequiredError
+  ) {
     return err.message
   }
   if (err instanceof NetworkError) return 'Não foi possível conectar ao servidor de autenticação.'
@@ -19,6 +24,10 @@ export function authErrorMessage(err: unknown): string {
         return 'Sua conta não pertence a esta organização.'
       case 'current password is incorrect':
         return 'A senha atual está incorreta.'
+      case 'initial_password_expired':
+        return 'Sua senha inicial expirou. Peça uma nova ao administrador.'
+      case 'new password must differ from the current one':
+        return 'A nova senha deve ser diferente da atual.'
     }
     if (err.status === 400 && err.message.startsWith('password must be')) {
       return 'A nova senha deve ter entre 10 e 128 caracteres.'
