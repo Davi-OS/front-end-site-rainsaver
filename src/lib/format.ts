@@ -12,3 +12,16 @@ export function formatLiters(value: number): string {
 export function formatMm(value: number): string {
   return `${numberFormatter.format(value)} mm`
 }
+
+const monthFormatter = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+
+/** e.g. (2026, 1) -> "jan. de 2026" */
+export function formatMonth(year: number, month: number): string {
+  return monthFormatter.format(new Date(Date.UTC(year, month - 1, 1)))
+}
+
+const kmFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
+
+export function formatKm(value: number): string {
+  return `${kmFormatter.format(value)} km`
+}

@@ -1,53 +1,81 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { PublicUser } from '@/types'
-import { getSession, setSession } from '@/db/storage'
-import { createUser, findUserById, toPublicUser, updateUserProfile, verifyCredentials } from '@/db/users'
-import { AuthContext, type AuthContextValue } from './context'
+import * as authApi from '@/api/auth'
+import { authorized, onSessionExpired } from '@/api/session'
+import { clearTokens, decodeClaims, readTokens, TOKENS_KEY, writeTokens } from '@/api/tokens'
+import { AuthContext, type AuthContextValue, type AuthStatus } from './context'
+import { NoAccessError } from './errors'
 
-function resolveInitialUser(): PublicUser | null {
-  const session = getSession()
-  if (!session) return null
-  const user = findUserById(session.userId)
-  return user ? toPublicUser(user) : null
+interface State {
+  status: AuthStatus
+  user: PublicUser | null
+  notice: string | null
 }
 
+const ANONYMOUS: State = { status: 'anonymous', user: null, notice: null }
+const anonymousWith = (notice: string): State => ({ ...ANONYMOUS, notice })
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<PublicUser | null>(resolveInitialUser)
+  const [state, setState] = useState<State>(() => (readTokens() ? { status: 'loading', user: null, notice: null } : ANONYMOUS))
 
-  const login: AuthContextValue['login'] = (input) => {
-    const found = verifyCredentials(input.email, input.password)
-    setSession({ userId: found.id })
-    const publicUser = toPublicUser(found)
-    setUser(publicUser)
-    return publicUser
+  useEffect(() => {
+    let cancelled = false
+    if (readTokens()) {
+      authorized(authApi.me)
+        .then((user) => !cancelled && setState({ status: 'authenticated', user, notice: null }))
+        // Expired session (tokens already cleared, onSessionExpired already
+        // set its notice: keep it) or backend unreachable: either way the
+        // user has to log in.
+        .catch(() => !cancelled && setState((s) => (s.status === 'anonymous' ? s : ANONYMOUS)))
+    }
+
+    const unsubscribe = onSessionExpired(() => setState(anonymousWith('Sua sessão expirou. Entre novamente.')))
+    // Logging out in another tab clears the shared tokens.
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === TOKENS_KEY && event.newValue === null) setState(ANONYMOUS)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => {
+      cancelled = true
+      unsubscribe()
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [])
+
+  const login: AuthContextValue['login'] = async ({ email, password, org }) => {
+    const tokens = await authApi.login(email, password, org)
+    // A valid account without membership gets a token with no org: it can't
+    // use RainSaver, so don't start a session with it.
+    if (!decodeClaims(tokens.accessToken)?.org) {
+      await authApi.logout(tokens).catch(() => undefined)
+      throw new NoAccessError()
+    }
+    writeTokens(tokens)
+    const user = await authApi.me(tokens.accessToken)
+    setState({ status: 'authenticated', user, notice: null })
+    return user
   }
 
-  const register: AuthContextValue['register'] = (input) => {
-    const created = createUser(input)
-    setSession({ userId: created.id })
-    const publicUser = toPublicUser(created)
-    setUser(publicUser)
-    return publicUser
+  const logout = async () => {
+    const tokens = readTokens()
+    clearTokens()
+    setState(ANONYMOUS)
+    // Best effort: revokes the refresh token server-side. The local session
+    // is already gone even if this fails.
+    if (tokens) await authApi.logout(tokens).catch(() => undefined)
   }
 
-  const logout = () => {
-    setSession(null)
-    setUser(null)
-  }
-
-  const refreshUser = () => {
-    setUser(resolveInitialUser())
-  }
-
-  const updateProfile: AuthContextValue['updateProfile'] = (input) => {
-    if (!user) return
-    const updated = updateUserProfile(user.id, input)
-    setUser(toPublicUser(updated))
+  const changePassword: AuthContextValue['changePassword'] = async (currentPassword, newPassword) => {
+    await authorized((token) => authApi.changePassword(token, currentPassword, newPassword))
+    // Every session (this one included) was invalidated server-side; the
+    // route guard sends the user to /login, which shows the notice.
+    clearTokens()
+    setState(anonymousWith('Senha alterada. Entre novamente com a nova senha.'))
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: user !== null, login, register, logout, refreshUser, updateProfile }}
+      value={{ ...state, isAuthenticated: state.status === 'authenticated', login, logout, changePassword }}
     >
       {children}
     </AuthContext.Provider>

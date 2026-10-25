@@ -24,7 +24,12 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Repository variables (Settings → Secrets and variables → Actions →
+      # Variables): public URLs, baked into the bundle.
       - run: npm run build
+        env:
+          VITE_AUTH_API_URL: ${{ vars.VITE_AUTH_API_URL }}
+          VITE_RAINSAVER_API_URL: ${{ vars.VITE_RAINSAVER_API_URL }}
       # SPA fallback so deep links (e.g. /dashboard) work on direct load/reload
       - run: cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v5

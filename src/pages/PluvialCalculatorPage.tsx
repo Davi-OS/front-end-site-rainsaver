@@ -1,23 +1,60 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import type { PluvialResult } from '@/types'
-import { useAuth } from '@/auth/useAuth'
+import type { Address, PluvialEconomy } from '@/types'
+import { calculatePluvialEconomy, latestPluvialEconomy, listAddresses } from '@/api/rainsaver'
 import { Alert, Button, Card, Input, Select } from '@/components/ui'
-import { listAddressesByUser } from '@/db/addresses'
-import { findStationByEstado } from '@/db/stations'
-import { calculatePluvialEconomy, RUNOFF_EFFICIENCY } from '@/lib/pluvial'
-import { formatBRL, formatLiters, formatMm } from '@/lib/format'
+import { rainSaverErrorMessage } from '@/lib/apiErrors'
+import { formatBRL, formatKm, formatLiters, formatMm, formatMonth } from '@/lib/format'
+
+const DEFAULT_TARIFF_PER_M3 = '8.5'
 
 export function PluvialCalculatorPage() {
-  const { user } = useAuth()
-  const addresses = useMemo(() => listAddressesByUser(user!.id), [user])
-
-  const [addressId, setAddressId] = useState(addresses[0]?.id ?? '')
+  const [addresses, setAddresses] = useState<Address[] | null>(null)
+  const [addressId, setAddressId] = useState('')
   const [roofAreaM2, setRoofAreaM2] = useState('')
-  const [tariffPerM3, setTariffPerM3] = useState('8.5')
-  const [result, setResult] = useState<PluvialResult | null>(null)
-  const [stationLabel, setStationLabel] = useState('')
+  const [tariffPerM3, setTariffPerM3] = useState(DEFAULT_TARIFF_PER_M3)
+  const [result, setResult] = useState<PluvialEconomy | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [calculating, setCalculating] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    listAddresses()
+      .then((list) => {
+        if (cancelled) return
+        setAddresses(list)
+        setAddressId(list[0]?.id ?? '')
+      })
+      .catch((err) => !cancelled && setError(rainSaverErrorMessage(err)))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Show the last calculation of the selected address, if any.
+  useEffect(() => {
+    if (!addressId) return
+    let cancelled = false
+    setResult(null)
+    latestPluvialEconomy(addressId)
+      .then((latest) => {
+        if (cancelled || !latest) return
+        setResult(latest)
+        setRoofAreaM2(String(latest.areaM2))
+      })
+      .catch(() => undefined) // not having a previous result is fine
+    return () => {
+      cancelled = true
+    }
+  }, [addressId])
+
+  if (addresses === null) {
+    return error ? (
+      <Alert variant="error">{error}</Alert>
+    ) : (
+      <p className="py-8 text-center text-sm text-slate-500">Carregando endereços…</p>
+    )
+  }
 
   if (addresses.length === 0) {
     return (
@@ -31,41 +68,37 @@ export function PluvialCalculatorPage() {
     )
   }
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setError(null)
 
-    const address = addresses.find((a) => a.id === addressId)
-    if (!address) {
-      setError('Selecione um endereço válido.')
-      return
-    }
-    const station = findStationByEstado(address.estado)
-    if (!station) {
-      setError(`Não encontramos uma estação de referência para o estado ${address.estado}.`)
-      return
-    }
     const roofArea = parseFloat(roofAreaM2)
-    const tariff = parseFloat(tariffPerM3)
     if (!roofArea || roofArea <= 0) {
       setError('Informe uma área de captação válida.')
       return
     }
+    const tariff = parseFloat(tariffPerM3)
     if (!tariff || tariff <= 0) {
       setError('Informe uma tarifa de água válida.')
       return
     }
 
-    setResult(
-      calculatePluvialEconomy({
-        stationId: station.id,
-        roofAreaM2: roofArea,
-        monthlyRainfallMm: station.monthlyRainfallMm,
-        tariffPerM3: tariff,
-      }),
-    )
-    setStationLabel(`${station.name} – ${station.estado}`)
+    setCalculating(true)
+    try {
+      setResult(await calculatePluvialEconomy(addressId, roofArea))
+    } catch (err) {
+      setError(rainSaverErrorMessage(err))
+    } finally {
+      setCalculating(false)
+    }
   }
+
+  // The backend computes captured liters (1 mm over 1 m² = 1 L, no losses
+  // factor); the R$ figure is only presentation, using the user's tariff.
+  const tariff = parseFloat(tariffPerM3) || 0
+  const savings = (liters: number) => (liters / 1000) * tariff
+  const totalLiters = result?.months.reduce((sum, m) => sum + m.capturedLiters, 0) ?? 0
+  const totalRainfall = result?.months.reduce((sum, m) => sum + m.rainfallMm, 0) ?? 0
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -116,12 +149,12 @@ export function PluvialCalculatorPage() {
           />
 
           <p className="text-xs text-slate-500">
-            Consideramos um coeficiente de aproveitamento de {RUNOFF_EFFICIENCY * 100}%, já
-            descontando perdas por evaporação, filtragem e descarte da primeira chuva (first-flush).
+            Usamos a chuva medida nos últimos 12 meses pela estação do INMET mais próxima do endereço. Cada 1 mm de
+            chuva sobre 1 m² de telhado equivale a 1 litro captado (sem descontar perdas).
           </p>
 
-          <Button type="submit" fullWidth>
-            Calcular economia
+          <Button type="submit" fullWidth disabled={calculating}>
+            {calculating ? 'Calculando…' : 'Calcular economia'}
           </Button>
         </form>
       </Card>
@@ -129,25 +162,42 @@ export function PluvialCalculatorPage() {
       {result && (
         <Card className="w-full">
           <h2 className="mb-1 text-base font-semibold text-slate-900">Resultado estimado</h2>
-          <p className="mb-4 text-sm text-slate-500">Estação de referência: {stationLabel}</p>
+          <p className="mb-4 text-sm text-slate-500">
+            Estação INMET {result.stationCode}, a {formatKm(result.distanceKm)} do endereço · telhado de{' '}
+            {result.areaM2} m²
+          </p>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {result.quarters.map((quarter) => (
-              <div key={quarter.quarter} className="rounded-lg border border-slate-200 p-3">
-                <p className="text-xs font-medium text-slate-500">{quarter.label}</p>
-                <p className="mt-1 text-xs text-slate-400">{formatMm(quarter.rainfallMm)}</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{formatLiters(quarter.litersCaptured)}</p>
-                <p className="text-sm font-semibold text-emerald-600">{formatBRL(quarter.savingsBRL)}</p>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500">
+                  <th className="py-2 pr-4 font-medium">Mês</th>
+                  <th className="py-2 pr-4 text-right font-medium">Chuva</th>
+                  <th className="py-2 pr-4 text-right font-medium">Captado</th>
+                  <th className="py-2 text-right font-medium">Economia</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.months.map((m) => (
+                  <tr key={`${m.year}-${m.month}`} className="border-b border-slate-100">
+                    <td className="py-2 pr-4 text-slate-700">{formatMonth(m.year, m.month)}</td>
+                    <td className="py-2 pr-4 text-right text-slate-500">{formatMm(m.rainfallMm)}</td>
+                    <td className="py-2 pr-4 text-right text-slate-900">{formatLiters(m.capturedLiters)}</td>
+                    <td className="py-2 text-right font-medium text-emerald-600">{formatBRL(savings(m.capturedLiters))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           <div className="mt-4 flex items-center justify-between rounded-lg bg-brand-50 p-4">
             <div>
-              <p className="text-xs font-medium text-brand-700">Total anual estimado</p>
-              <p className="text-sm text-brand-900">{formatLiters(result.totals.litersCaptured)} captados</p>
+              <p className="text-xs font-medium text-brand-700">Total em {result.months.length} meses</p>
+              <p className="text-sm text-brand-900">
+                {formatLiters(totalLiters)} captados · {formatMm(totalRainfall)} de chuva
+              </p>
             </div>
-            <p className="text-xl font-bold text-emerald-600">{formatBRL(result.totals.savingsBRL)}</p>
+            <p className="text-xl font-bold text-emerald-600">{formatBRL(savings(totalLiters))}</p>
           </div>
         </Card>
       )}
