@@ -35,19 +35,38 @@ export class PasswordChangeRequiredError extends Error {
 
 const toPair = (r: TokenPairResponse): TokenPair => ({ accessToken: r.access_token, refreshToken: r.refresh_token })
 
+/** Turns the auth's machine-readable login answers into typed errors. */
+function credentialsError(err: unknown): unknown {
+  const data = err instanceof ApiError ? (err.body as { error?: string; orgs?: OrgChoice[] } | undefined) : undefined
+  if (err instanceof ApiError && err.status === 409 && data?.error === 'org_required') {
+    return new OrgRequiredError(data.orgs ?? [])
+  }
+  if (err instanceof ApiError && err.status === 403 && data?.error === 'password_change_required') {
+    return new PasswordChangeRequiredError()
+  }
+  return err
+}
+
 export async function login(email: string, password: string, org?: string): Promise<TokenPair> {
   try {
     const body = { email, password, system: AUTH_SYSTEM, ...(org ? { org } : {}) }
     return toPair(await requestJSON<TokenPairResponse>(`${AUTH_API_URL}/login`, { method: 'POST', body }))
   } catch (err) {
-    const data = err instanceof ApiError ? (err.body as { error?: string; orgs?: OrgChoice[] } | undefined) : undefined
-    if (err instanceof ApiError && err.status === 409 && data?.error === 'org_required') {
-      throw new OrgRequiredError(data.orgs ?? [])
-    }
-    if (err instanceof ApiError && err.status === 403 && data?.error === 'password_change_required') {
-      throw new PasswordChangeRequiredError()
-    }
-    throw err
+    throw credentialsError(err)
+  }
+}
+
+/**
+ * Creates the account with its personal RainSaver organization and signs
+ * in. An email that already has an account (another system) only gets the
+ * organization, if password is that account's.
+ */
+export async function signup(email: string, password: string): Promise<TokenPair> {
+  try {
+    const body = { email, password, system: AUTH_SYSTEM }
+    return toPair(await requestJSON<TokenPairResponse>(`${AUTH_API_URL}/signup`, { method: 'POST', body }))
+  } catch (err) {
+    throw credentialsError(err)
   }
 }
 

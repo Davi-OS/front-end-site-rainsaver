@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { PublicUser } from '@/types'
 import * as authApi from '@/api/auth'
 import { authorized, onSessionExpired } from '@/api/session'
-import { clearTokens, decodeClaims, readTokens, TOKENS_KEY, writeTokens } from '@/api/tokens'
+import { clearTokens, decodeClaims, readTokens, TOKENS_KEY, writeTokens, type TokenPair } from '@/api/tokens'
 import { AuthContext, type AuthContextValue, type AuthStatus } from './context'
 import { NoAccessError } from './errors'
 
@@ -42,8 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login: AuthContextValue['login'] = async ({ email, password, org }) => {
-    const tokens = await authApi.login(email, password, org)
+  const startSession = async (tokens: TokenPair) => {
     // A valid account without membership gets a token with no org: it can't
     // use RainSaver, so don't start a session with it.
     if (!decodeClaims(tokens.accessToken)?.org) {
@@ -55,6 +54,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: 'authenticated', user, notice: null })
     return user
   }
+
+  const login: AuthContextValue['login'] = async ({ email, password, org }) =>
+    startSession(await authApi.login(email, password, org))
+
+  const signup: AuthContextValue['signup'] = async (email, password) =>
+    startSession(await authApi.signup(email, password))
 
   const logout = async () => {
     const tokens = readTokens()
@@ -75,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ ...state, isAuthenticated: state.status === 'authenticated', login, logout, changePassword }}
+      value={{ ...state, isAuthenticated: state.status === 'authenticated', login, signup, logout, changePassword }}
     >
       {children}
     </AuthContext.Provider>
