@@ -28,7 +28,16 @@ export function authErrorMessage(err: unknown): string {
         return 'Sua senha inicial expirou. Peça uma nova ao administrador.'
       case 'new password must differ from the current one':
         return 'A nova senha deve ser diferente da atual.'
+      case 'email is already registered':
+        return 'Este e-mail já tem uma conta. Para usar o RainSaver com ela, informe a senha dessa conta, ou entre.'
+      case 'already registered in this system':
+        return 'Você já tem conta no RainSaver. Entre com ela.'
+      case 'signup disabled':
+        return 'O cadastro está fechado no momento. Peça acesso ao administrador.'
+      case 'invalid email address':
+        return 'Informe um e-mail válido.'
     }
+    if (err.status === 429) return 'Muitas tentativas. Aguarde alguns minutos e tente de novo.'
     if (err.status === 400 && err.message.startsWith('password must be')) {
       return 'A nova senha deve ter entre 10 e 128 caracteres.'
     }

@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { AuthLayout } from '@/components/layout/AuthLayout'
 import { LoginPage } from '@/pages/auth/LoginPage'
+import { SignupPage } from '@/pages/auth/SignupPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { PluvialCalculatorPage } from '@/pages/PluvialCalculatorPage'
 import { SolarCalculatorPage } from '@/pages/SolarCalculatorPage'
@@ -20,6 +21,7 @@ function App() {
 
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/cadastro" element={<SignupPage />} />
           </Route>
 
           <Route element={<ProtectedRoute />}>

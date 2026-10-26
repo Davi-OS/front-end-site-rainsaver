@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { changePasswordWithCredentials, OrgRequiredError, PasswordChangeRequiredError, type OrgChoice } from '@/api/auth'
 import { useAuth } from '@/auth/useAuth'
 import { Alert, Button, Input, Select } from '@/components/ui'
@@ -158,7 +158,10 @@ export function LoginPage() {
       </form>
 
       <p className="text-center text-sm text-slate-500">
-        Não tem uma conta? Peça acesso ao administrador da sua organização.
+        Não tem uma conta?{' '}
+        <Link to="/cadastro" className="font-medium text-brand-700 underline">
+          Criar conta
+        </Link>
       </p>
     </div>
   )

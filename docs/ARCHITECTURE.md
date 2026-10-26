@@ -60,19 +60,21 @@ src/
 |---|---|---|---|
 | `/` | `RootRedirect` — redireciona para `/dashboard` se autenticado, senão `/login` | n/a | nenhum |
 | `/login` | `LoginPage` | não | `AuthLayout` |
+| `/cadastro` | `SignupPage` | não | `AuthLayout` |
 | `/dashboard` | `DashboardPage` | **sim** | `AppLayout` |
 | `/pluvial` | `PluvialCalculatorPage` | **sim** | `AppLayout` |
 | `/solar` | `SolarCalculatorPage` | **sim** | `AppLayout` |
 | `/settings` | `SettingsPage` | **sim** | `AppLayout` |
 | `*` | `NotFoundPage` | não | nenhum |
 
-Proteção via `<Route element={<ProtectedRoute />}>` envolvendo o grupo `AppLayout`: enquanto a sessão salva é validada (`status === 'loading'`) mostra um spinner; se anônimo, redireciona para `/login` preservando a rota tentada no state do router. Não há cadastro público: contas são criadas por um administrador da organização (`POST /orgs/{orgID}/users` no `go-auth-service`).
+Proteção via `<Route element={<ProtectedRoute />}>` envolvendo o grupo `AppLayout`: enquanto a sessão salva é validada (`status === 'loading'`) mostra um spinner; se anônimo, redireciona para `/login` preservando a rota tentada no state do router. Qualquer pessoa cria a conta em `/cadastro` (ver Autenticação); admins também podem criar contas pelo `go-auth-service`.
 
 ## Autenticação (go-auth-service)
 
 Configuração em `.env` (ver `.env.example`; valores embutidos no build pelo Vite): `VITE_AUTH_API_URL` (default `http://localhost:8080`) e `VITE_RAINSAVER_API_URL` (default `http://localhost:8081`). Em produção o auth roda na Azure (`https://ca-auth.lemonmoss-8726f7e4.northcentralus.azurecontainerapps.io`). O auth libera a origem pelas `web_origins` do sistema `rain-saver` (`deploy/auth-system.json` do rain-saver, que já lista `https://davi-os.github.io`), e o rain-saver libera pelo `CORS_ALLOWED_ORIGINS` dele.
 
 - **Senha definida pelo admin** (`LoginPage`): se o login responde 403 `password_change_required` (`PasswordChangeRequiredError`), a mesma tela pede nova senha + confirmação (política de `lib/validation.ts`: 10–128 caracteres), chama `POST /password/change {email, current_password, new_password}` (sem sessão) e loga com a nova senha. 403 `initial_password_expired` só mostra a mensagem: a senha inicial venceu e o admin precisa redefinir.
+- **Cadastro** (`SignupPage`, `api/auth.ts` → `signup`): `POST /signup {email, password, system: "rain-saver"}` cria a conta com uma **org pessoal** do RainSaver (a pessoa é `owner`) e já devolve o par de tokens; o `AuthProvider` abre a sessão como no login (`startSession`). E-mail que já tem conta (por exemplo, em outro sistema do auth): com a senha dessa conta, o RainSaver é ativado nela; senha errada → 409 `email is already registered`; conta que já usa o RainSaver → 409 `already registered in this system` ("Entre com ela"). Conta com senha provisória → mensagem mandando para o login, que faz a troca. 429 (rate limit por IP do auth) → "Muitas tentativas".
 - **Login** (`api/auth.ts`): `POST /login` com `system: "rain-saver"`. Se a conta pertence a várias organizações, o servidor responde 409 `org_required` e a `LoginPage` mostra um seletor de organização e reenvia com `org`. Um token **sem claim `org`** (conta sem acesso ao RainSaver) é recusado no front (`NoAccessError`) e revogado. Depois do login, `GET /me` traz `{id, email}`.
 - **Tokens** (`api/tokens.ts`): par access/refresh em `localStorage['rainsaver:tokens:v1']`, compartilhado entre abas (logout em uma aba encerra as outras via evento `storage`). Trade-off: exposto a XSS; a alternativa seria refresh token em cookie httpOnly, que o `go-auth-service` ainda não suporta.
 - **Refresh** (`api/session.ts`): `authorized(call)` renova o access token se faltarem <30s para expirar e, num 401, faz **um** refresh e repete a chamada. Refreshes concorrentes são unificados (o refresh token é rotacionado a cada uso; duas renovações paralelas derrubariam a sessão). Se a renovação falhar, a sessão expira: tokens limpos, `onSessionExpired` notifica o `AuthProvider` e o login mostra "Sua sessão expirou".

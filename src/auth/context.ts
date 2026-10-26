@@ -11,6 +11,8 @@ export interface AuthContextValue {
   /** Why the last session ended (password changed, session expired), for the login page. */
   notice: string | null
   login: (input: LoginInput) => Promise<PublicUser>
+  /** Creates the account (with its personal organization) and signs in. */
+  signup: (email: string, password: string) => Promise<PublicUser>
   logout: () => Promise<void>
   /** Changes the password; every session ends, so the user is logged out. */
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
