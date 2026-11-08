@@ -1,5 +1,5 @@
 import { RAINSAVER_API_URL } from '@/config'
-import type { Address, AddressInput, PluvialEconomy } from '@/types'
+import type { Address, AddressInput, PluvialEconomy, SolarEconomy } from '@/types'
 import { ApiError, requestJSON } from './http'
 import { authorized } from './session'
 
@@ -26,6 +26,23 @@ interface PluvialEconomyDTO {
   station_code: string
   distance_km: number
   monthly_captation: { year: number; month: number; rainfall_mm: number; captured_liters: number }[]
+}
+
+interface SolarEconomyDTO {
+  id: string
+  endereco_id: string
+  panel_power_w: number
+  panel_count: number
+  system_kwp: number
+  loss_factor: number
+  period_start: string
+  period_end: string
+  created_at: string
+  station_code: string
+  distance_km: number
+  total_kwh: number
+  monthly_avg_kwh: number
+  monthly_generation: { year: number; month: number; avg_daily_kwh_m2: number; generated_kwh: number }[]
 }
 
 const toAddress = (e: EnderecoDTO): Address => ({
@@ -55,6 +72,28 @@ const toPluvialEconomy = (p: PluvialEconomyDTO): PluvialEconomy => ({
     month: m.month,
     rainfallMm: m.rainfall_mm,
     capturedLiters: m.captured_liters,
+  })),
+})
+
+const toSolarEconomy = (s: SolarEconomyDTO): SolarEconomy => ({
+  id: s.id,
+  enderecoId: s.endereco_id,
+  panelPowerW: s.panel_power_w,
+  panelCount: s.panel_count,
+  systemKWp: s.system_kwp,
+  lossFactor: s.loss_factor,
+  periodStart: s.period_start,
+  periodEnd: s.period_end,
+  createdAt: s.created_at,
+  stationCode: s.station_code,
+  distanceKm: s.distance_km,
+  totalKWh: s.total_kwh,
+  monthlyAvgKWh: s.monthly_avg_kwh,
+  months: s.monthly_generation.map((m) => ({
+    year: m.year,
+    month: m.month,
+    avgDailyKWhM2: m.avg_daily_kwh_m2,
+    generatedKWh: m.generated_kwh,
   })),
 })
 
@@ -95,6 +134,34 @@ export async function latestPluvialEconomy(addressId: string): Promise<PluvialEc
       requestJSON<PluvialEconomyDTO>(url(`/enderecos/${encodeURIComponent(addressId)}/pluvial-economy`), { token }),
     )
     return toPluvialEconomy(result)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null
+    throw err
+  }
+}
+
+export async function calculateSolarEconomy(
+  addressId: string,
+  panelPowerW: number,
+  panelCount: number,
+): Promise<SolarEconomy> {
+  const result = await authorized((token) =>
+    requestJSON<SolarEconomyDTO>(url(`/enderecos/${encodeURIComponent(addressId)}/solar-economy`), {
+      method: 'POST',
+      token,
+      body: { panel_power_w: panelPowerW, panel_count: panelCount },
+    }),
+  )
+  return toSolarEconomy(result)
+}
+
+/** The most recent estimate for the address, or null if none was run yet. */
+export async function latestSolarEconomy(addressId: string): Promise<SolarEconomy | null> {
+  try {
+    const result = await authorized((token) =>
+      requestJSON<SolarEconomyDTO>(url(`/enderecos/${encodeURIComponent(addressId)}/solar-economy`), { token }),
+    )
+    return toSolarEconomy(result)
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return null
     throw err

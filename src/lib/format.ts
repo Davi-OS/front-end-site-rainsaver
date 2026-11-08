@@ -25,3 +25,18 @@ const kmFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 export function formatKm(value: number): string {
   return `${kmFormatter.format(value)} km`
 }
+
+export function formatKWh(value: number): string {
+  return `${numberFormatter.format(value)} kWh`
+}
+
+const decimalFormatter = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })
+
+export function formatKWp(value: number): string {
+  return `${decimalFormatter.format(value)} kWp`
+}
+
+/** Average daily irradiation, e.g. "5,2 kWh/m²/dia". */
+export function formatIrradiation(value: number): string {
+  return `${decimalFormatter.format(value)} kWh/m²/dia`
+}
