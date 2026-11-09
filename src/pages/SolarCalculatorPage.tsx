@@ -4,13 +4,14 @@ import type { Address, SolarEconomy } from '@/types'
 import { calculateSolarEconomy, latestSolarEconomy, listAddresses } from '@/api/rainsaver'
 import { Alert, Button, Card, Input, Select } from '@/components/ui'
 import { rainSaverErrorMessage } from '@/lib/apiErrors'
-import { formatIrradiation, formatKm, formatKWh, formatKWp, formatMonth } from '@/lib/format'
+import { formatBRL, formatKm, formatKWh, formatKWp, formatMonth } from '@/lib/format'
 
 export function SolarCalculatorPage() {
   const [addresses, setAddresses] = useState<Address[] | null>(null)
   const [addressId, setAddressId] = useState('')
   const [panelPowerW, setPanelPowerW] = useState('')
   const [panelCount, setPanelCount] = useState('1')
+  const [tariff, setTariff] = useState('')
   const [result, setResult] = useState<SolarEconomy | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [calculating, setCalculating] = useState(false)
@@ -40,6 +41,7 @@ export function SolarCalculatorPage() {
         setResult(latest)
         setPanelPowerW(String(latest.panelPowerW))
         setPanelCount(String(latest.panelCount))
+        setTariff(latest.tariffBRLPerKWh === null ? '' : String(latest.tariffBRLPerKWh).replace('.', ','))
       })
       .catch(() => undefined) // not having a previous result is fine
     return () => {
@@ -82,15 +84,25 @@ export function SolarCalculatorPage() {
       return
     }
 
+    // Optional; accepts "0,95" or "0.95".
+    const tariffText = tariff.trim().replace(',', '.')
+    const tariffValue = tariffText === '' ? undefined : Number(tariffText)
+    if (tariffValue !== undefined && !(tariffValue > 0 && tariffValue <= 10)) {
+      setError('Informe o valor do kWh em reais, entre R$ 0,01 e R$ 10,00 (ou deixe em branco).')
+      return
+    }
+
     setCalculating(true)
     try {
-      setResult(await calculateSolarEconomy(addressId, power, count))
+      setResult(await calculateSolarEconomy(addressId, power, count, tariffValue))
     } catch (err) {
       setError(rainSaverErrorMessage(err))
     } finally {
       setCalculating(false)
     }
   }
+
+  const hasSavings = result?.totalSavingsBRL != null
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -142,6 +154,19 @@ export function SolarCalculatorPage() {
             required
           />
 
+          <Input
+            label="Valor do kWh (R$) — opcional"
+            name="tariff"
+            type="text"
+            inputMode="decimal"
+            placeholder="Exemplo: 0,95"
+            value={tariff}
+            onChange={(e) => setTariff(e.target.value)}
+          />
+          <p className="-mt-2 text-xs text-slate-500">
+            Está na sua conta de luz. Sem ele mostramos só os kWh.
+          </p>
+
           <p className="text-xs text-slate-500">
             Usamos a irradiação solar medida nos últimos 12 meses pela estação do INMET mais próxima do endereço que
             mede radiação. A estimativa desconta 15% de perdas (inversor, cabos, calor e sujeira) e considera a
@@ -160,6 +185,7 @@ export function SolarCalculatorPage() {
           <p className="mb-4 text-sm text-slate-500">
             Estação INMET {result.stationCode}, a {formatKm(result.distanceKm)} do endereço · {result.panelCount} ×{' '}
             {result.panelPowerW} W = {formatKWp(result.systemKWp)}
+            {result.tariffBRLPerKWh !== null && <> · tarifa de {formatBRL(result.tariffBRLPerKWh)}/kWh</>}
           </p>
 
           <div className="overflow-x-auto">
@@ -167,16 +193,20 @@ export function SolarCalculatorPage() {
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
                   <th className="py-2 pr-4 font-medium">Mês</th>
-                  <th className="py-2 pr-4 text-right font-medium">Irradiação média</th>
-                  <th className="py-2 text-right font-medium">Geração</th>
+                  <th className="py-2 pr-4 text-right font-medium">Geração</th>
+                  {hasSavings && <th className="py-2 text-right font-medium">Economia</th>}
                 </tr>
               </thead>
               <tbody>
                 {result.months.map((m) => (
                   <tr key={`${m.year}-${m.month}`} className="border-b border-slate-100">
                     <td className="py-2 pr-4 text-slate-700">{formatMonth(m.year, m.month)}</td>
-                    <td className="py-2 pr-4 text-right text-slate-500">{formatIrradiation(m.avgDailyKWhM2)}</td>
-                    <td className="py-2 text-right font-medium text-amber-600">{formatKWh(m.generatedKWh)}</td>
+                    <td className="py-2 pr-4 text-right text-slate-700">{formatKWh(m.generatedKWh)}</td>
+                    {hasSavings && (
+                      <td className="py-2 text-right font-medium text-emerald-600">
+                        {m.savingsBRL !== null && formatBRL(m.savingsBRL)}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -185,10 +215,20 @@ export function SolarCalculatorPage() {
 
           <div className="mt-4 flex items-center justify-between rounded-lg bg-amber-50 p-4">
             <div>
-              <p className="text-xs font-medium text-amber-700">Total em {result.months.length} meses</p>
-              <p className="text-sm text-amber-900">Média de {formatKWh(result.monthlyAvgKWh)} por mês</p>
+              <p className="text-xs font-medium text-amber-700">
+                {hasSavings ? `Você economiza em ${result.months.length} meses` : `Total em ${result.months.length} meses`}
+              </p>
+              <p className="text-sm text-amber-900">
+                {hasSavings && result.monthlyAvgSavingsBRL !== null
+                  ? `${formatKWh(result.totalKWh)} gerados · média de ${formatBRL(result.monthlyAvgSavingsBRL)} por mês`
+                  : `Média de ${formatKWh(result.monthlyAvgKWh)} por mês`}
+              </p>
             </div>
-            <p className="text-xl font-bold text-amber-600">{formatKWh(result.totalKWh)}</p>
+            <p className="text-xl font-bold text-amber-600">
+              {hasSavings && result.totalSavingsBRL !== null
+                ? formatBRL(result.totalSavingsBRL)
+                : formatKWh(result.totalKWh)}
+            </p>
           </div>
         </Card>
       )}

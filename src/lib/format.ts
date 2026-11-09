@@ -35,8 +35,3 @@ const decimalFormatter = new Intl.NumberFormat('pt-BR', { minimumFractionDigits:
 export function formatKWp(value: number): string {
   return `${decimalFormatter.format(value)} kWp`
 }
-
-/** Average daily irradiation, e.g. "5,2 kWh/m²/dia". */
-export function formatIrradiation(value: number): string {
-  return `${decimalFormatter.format(value)} kWh/m²/dia`
-}

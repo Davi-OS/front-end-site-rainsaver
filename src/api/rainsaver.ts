@@ -40,9 +40,18 @@ interface SolarEconomyDTO {
   created_at: string
   station_code: string
   distance_km: number
+  tariff_brl_per_kwh?: number
   total_kwh: number
   monthly_avg_kwh: number
-  monthly_generation: { year: number; month: number; avg_daily_kwh_m2: number; generated_kwh: number }[]
+  total_savings_brl?: number
+  monthly_avg_savings_brl?: number
+  monthly_generation: {
+    year: number
+    month: number
+    avg_daily_kwh_m2: number
+    generated_kwh: number
+    savings_brl?: number
+  }[]
 }
 
 const toAddress = (e: EnderecoDTO): Address => ({
@@ -87,13 +96,17 @@ const toSolarEconomy = (s: SolarEconomyDTO): SolarEconomy => ({
   createdAt: s.created_at,
   stationCode: s.station_code,
   distanceKm: s.distance_km,
+  tariffBRLPerKWh: s.tariff_brl_per_kwh ?? null,
   totalKWh: s.total_kwh,
   monthlyAvgKWh: s.monthly_avg_kwh,
+  totalSavingsBRL: s.total_savings_brl ?? null,
+  monthlyAvgSavingsBRL: s.monthly_avg_savings_brl ?? null,
   months: s.monthly_generation.map((m) => ({
     year: m.year,
     month: m.month,
     avgDailyKWhM2: m.avg_daily_kwh_m2,
     generatedKWh: m.generated_kwh,
+    savingsBRL: m.savings_brl ?? null,
   })),
 })
 
@@ -144,12 +157,17 @@ export async function calculateSolarEconomy(
   addressId: string,
   panelPowerW: number,
   panelCount: number,
+  tariffBRLPerKWh?: number,
 ): Promise<SolarEconomy> {
   const result = await authorized((token) =>
     requestJSON<SolarEconomyDTO>(url(`/enderecos/${encodeURIComponent(addressId)}/solar-economy`), {
       method: 'POST',
       token,
-      body: { panel_power_w: panelPowerW, panel_count: panelCount },
+      body: {
+        panel_power_w: panelPowerW,
+        panel_count: panelCount,
+        ...(tariffBRLPerKWh !== undefined && { tariff_brl_per_kwh: tariffBRLPerKWh }),
+      },
     }),
   )
   return toSolarEconomy(result)
