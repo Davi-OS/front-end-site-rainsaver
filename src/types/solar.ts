@@ -5,6 +5,8 @@ export interface MonthlyGeneration {
   /** Average daily irradiation, kWh/m²/day (= peak sun hours). */
   avgDailyKWhM2: number
   generatedKWh: number
+  /** generatedKWh × tariff; null when no tariff was entered. */
+  savingsBRL: number | null
 }
 
 /** A photovoltaic generation estimate computed by the rain-saver backend. */
@@ -22,7 +24,11 @@ export interface SolarEconomy {
   /** Nearest INMET station with solar data, used for the irradiation. */
   stationCode: string
   distanceKm: number
+  /** Price of one kWh the user entered, R$; null when none. */
+  tariffBRLPerKWh: number | null
   totalKWh: number
   monthlyAvgKWh: number
+  totalSavingsBRL: number | null
+  monthlyAvgSavingsBRL: number | null
   months: MonthlyGeneration[]
 }
