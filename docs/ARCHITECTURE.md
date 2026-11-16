@@ -1,6 +1,6 @@
 # front-end-site-rainsaver — Documentação Técnica
 
-> **Integrado aos backends.** Autenticação via `go-auth-service` (JWT com `aud=rain-saver`); endereços e cálculo pluvial via `rain-saver`. **Só o mapa/ranking de estações do Dashboard continua simulado** em `localStorage` (`DEFAULT_STATIONS`). Além dos backends, a única chamada de rede é para a API pública ViaCEP.
+> **Integrado aos backends.** Autenticação via `go-auth-service` (JWT com `aud=rain-saver`); endereços e cálculo pluvial via `rain-saver`. O mapa de estações do Dashboard lê a rota pública `GET /estacoes` do `rain-saver`. Além dos backends, a única chamada de rede é para a API pública ViaCEP.
 
 ## Stack / Tooling
 
@@ -47,12 +47,11 @@ src/
     ui/        — primitivos: Button, Input, Select, Card, Alert, Modal, Tabs (barrel em index.ts)
     address/   — AddressForm.tsx, AddressTable.tsx
     map/       — StationsMap.tsx (Leaflet)
-  db/          — dados ainda simulados (só estações do Dashboard): storage.ts, stations.ts, seed.ts
   lib/         — format.ts, validation.ts, viaCep.ts, authErrors.ts / apiErrors.ts (mensagens pt-BR)
-  types/       — user.ts, address.ts, station.ts, pluvial.ts, db.ts, index.ts
+  types/       — user.ts, address.ts, station.ts, pluvial.ts, index.ts
 ```
 
-`src/api/` fala com o `go-auth-service` e o `rain-saver`; `src/db/` só guarda o dataset simulado de estações do Dashboard.
+`src/api/` fala com o `go-auth-service` e o `rain-saver`.
 
 ## Rotas
 
@@ -94,10 +93,7 @@ Duas abas:
 O cálculo é feito pelo **backend**: `POST /enderecos/:id/pluvial-economy` com a área do telhado devolve a captação **mensal** dos últimos 12 meses medidos pela estação INMET mais próxima do endereço (`station_code`, `distance_km`), com `litros = área(m²) × chuva(mm)` — sem coeficiente de eficiência. Ao escolher um endereço, o último cálculo dele é carregado (`GET`, 404 = nenhum ainda). A tarifa (R$/m³) é só apresentação: a economia em R$ é `litros / 1000 × tarifa`, calculada no client. O antigo motor trimestral com eficiência de 0,8 (`lib/pluvial.ts`) foi removido.
 
 ### Dashboard — Estações Meteorológicas (`DashboardPage.tsx`)
-Mostra o mesmo dataset mockado `DEFAULT_STATIONS` (27 entradas, uma por capital + DF) em:
-- Mapa Leaflet (`StationsMap.tsx`), tiles do OpenStreetMap público, marcadores por círculo dimensionados/coloridos pela chuva anual estimada.
-- Lista lateral ranqueada (top-10 por chuva anual), calculada no client.
-Sem chamada de backend — tudo estático/mockado renderizado no navegador.
+Mostra todas as estações INMET mapeadas (`GET /estacoes` do `rain-saver`, rota pública, sem token) em um mapa Leaflet (`StationsMap.tsx`), tiles do OpenStreetMap público, um marcador por círculo com nome, UF e código no popup. Sem clustering (~600 marcadores renderizam bem). Não há ranking de chuva: a rota só devolve código, nome, coordenadas e UF.
 
 ### Calculadora Solar (`SolarCalculatorPage.tsx`)
 **Placeholder puro**, sem nenhuma lógica:
@@ -152,5 +148,5 @@ Projeto anterior ("GreenTech"), mantido só como referência histórica — **n�
 
 1. ~~Login real contra o `go-auth-service`~~ — feito.
 2. ~~Endereços e cálculo pluvial via `rain-saver`~~ — feito (geocodificação no backend).
-3. Dashboard: trocar o dataset mockado de estações (`DEFAULT_STATIONS`) por dados reais do `rain-saver` — exige um endpoint de listagem de estações, que ainda não existe.
+3. ~~Dashboard com estações reais~~ — feito (`GET /estacoes`).
 4. Deploy: cadastrar o sistema `rain-saver` no auth da Azure (`POST /systems`), publicar o rain-saver e preencher as variáveis do repositório (ver Build & Deploy). Domínio próprio pode esperar até abrir para usuários reais. Se o ambiente da Azure for recriado, o FQDN muda, e com ele o `AUTH_ISSUER`, as `web_origins` e as `VITE_*`.
