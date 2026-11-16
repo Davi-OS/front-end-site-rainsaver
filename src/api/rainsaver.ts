@@ -1,5 +1,5 @@
 import { RAINSAVER_API_URL } from '@/config'
-import type { Address, AddressInput, PluvialEconomy, SolarEconomy } from '@/types'
+import type { Address, AddressInput, PluvialEconomy, SolarEconomy, Station } from '@/types'
 import { ApiError, requestJSON } from './http'
 import { authorized } from './session'
 
@@ -111,6 +111,20 @@ const toSolarEconomy = (s: SolarEconomyDTO): SolarEconomy => ({
 })
 
 const url = (path: string) => `${RAINSAVER_API_URL}${path}`
+
+interface EstacaoDTO {
+  code: string
+  name: string
+  latitude: number
+  longitude: number
+  uf: string
+}
+
+/** Public route: no token, so the home page loads even before the session is resolved. */
+export async function listStations(): Promise<Station[]> {
+  const list = await requestJSON<EstacaoDTO[]>(url('/estacoes'))
+  return list.map((s) => ({ code: s.code, name: s.name, uf: s.uf, lat: s.latitude, lng: s.longitude }))
+}
 
 export async function listAddresses(): Promise<Address[]> {
   const list = await authorized((token) => requestJSON<EnderecoDTO[]>(url('/enderecos'), { token }))

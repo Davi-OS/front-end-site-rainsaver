@@ -1,10 +1,8 @@
 export interface Station {
-  id: string
+  code: string
   name: string
-  cidade: string
-  estado: string
+  /** Empty when the station has no state recorded */
+  uf: string
   lat: number
   lng: number
-  /** Average rainfall in mm, index 0 = January ... index 11 = December */
-  monthlyRainfallMm: number[]
 }
