@@ -4,12 +4,16 @@ import { Input } from '@/components/ui'
 import { isValidCep } from '@/lib/validation'
 import { lookupCep } from '@/lib/viaCep'
 
+export type AddressFieldErrors = Partial<Record<keyof AddressInput, string>>
+
 interface AddressFormProps {
   value: AddressInput
   onChange: (value: AddressInput) => void
+  /** Problems found on submit, shown next to each field. */
+  errors?: AddressFieldErrors
 }
 
-export function AddressForm({ value, onChange }: AddressFormProps) {
+export function AddressForm({ value, onChange, errors = {} }: AddressFormProps) {
   const [cepError, setCepError] = useState<string | undefined>()
   const [loadingCep, setLoadingCep] = useState(false)
 
@@ -20,7 +24,7 @@ export function AddressForm({ value, onChange }: AddressFormProps) {
   const handleCepBlur = async () => {
     setCepError(undefined)
     if (!isValidCep(value.cep)) {
-      setCepError('CEP inválido.')
+      setCepError('CEP inválido. Informe os 8 dígitos, como 80210-000.')
       return
     }
     setLoadingCep(true)
@@ -34,51 +38,62 @@ export function AddressForm({ value, onChange }: AddressFormProps) {
         estado: result.estado,
       })
     } catch {
-      setCepError('CEP não encontrado.')
+      setCepError('CEP não encontrado. Confira os números ou preencha o endereço abaixo.')
     } finally {
       setLoadingCep(false)
     }
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid gap-4 sm:grid-cols-2">
       <Input
         label="CEP"
         name="cep"
+        inputMode="numeric"
+        autoComplete="postal-code"
         value={value.cep}
         onChange={(e) => set('cep', e.target.value)}
         onBlur={handleCepBlur}
-        error={cepError}
-        placeholder={loadingCep ? 'Buscando...' : '00000-000'}
+        error={cepError ?? errors.cep}
+        placeholder={loadingCep ? 'Buscando…' : 'Exemplo: 80210-000…'}
       />
       <Input
         label="Número"
         name="number"
+        autoComplete="off"
+        error={errors.number}
         value={value.number}
         onChange={(e) => set('number', e.target.value)}
       />
       <Input
         label="Logradouro"
         name="logradouro"
-        containerClassName="col-span-2"
+        autoComplete="address-line1"
+        error={errors.logradouro}
+        containerClassName="sm:col-span-2"
         value={value.logradouro}
         onChange={(e) => set('logradouro', e.target.value)}
       />
       <Input
         label="Bairro"
         name="bairro"
+        autoComplete="off"
         value={value.bairro}
         onChange={(e) => set('bairro', e.target.value)}
       />
       <Input
         label="Cidade"
         name="cidade"
+        autoComplete="address-level2"
+        error={errors.cidade}
         value={value.cidade}
         onChange={(e) => set('cidade', e.target.value)}
       />
       <Input
         label="Estado (UF)"
         name="estado"
+        autoComplete="address-level1"
+        error={errors.estado}
         maxLength={2}
         value={value.estado}
         onChange={(e) => set('estado', e.target.value.toUpperCase())}

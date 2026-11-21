@@ -19,8 +19,25 @@ export const MAX_PASSWORD_LENGTH = 128
  * it is. label names it in the message ("nova senha", or "senha" at signup).
  */
 export function newPasswordError(password: string, confirmation: string, label = 'nova senha'): string | null {
-  if (password.length < MIN_PASSWORD_LENGTH) return `A ${label} deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`
-  if (password.length > MAX_PASSWORD_LENGTH) return `A ${label} deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres.`
-  if (password !== confirmation) return `A confirmação não confere com a ${label}.`
-  return null
+  const errors = newPasswordFieldErrors(password, confirmation, label)
+  return errors.password ?? errors.confirmation ?? null
+}
+
+export interface PasswordFieldErrors {
+  /** Problem with the password itself (length). */
+  password?: string
+  /** Problem with the confirmation field (does not match). */
+  confirmation?: string
+}
+
+/** Same rules as newPasswordError, but says which field each problem belongs to. */
+export function newPasswordFieldErrors(password: string, confirmation: string, label = 'nova senha'): PasswordFieldErrors {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { password: `A ${label} deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.` }
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return { password: `A ${label} deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres.` }
+  }
+  if (password !== confirmation) return { confirmation: `A confirmação não confere com a ${label}.` }
+  return {}
 }

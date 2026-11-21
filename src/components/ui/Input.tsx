@@ -1,4 +1,5 @@
-import type { InputHTMLAttributes } from 'react'
+import { useId, type InputHTMLAttributes } from 'react'
+import { FIELD_ERROR_CLASSES, FIELD_LABEL_CLASSES, fieldClasses } from './fieldStyles'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
@@ -6,21 +7,40 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   containerClassName?: string
 }
 
-export function Input({ label, error, id, className = '', containerClassName = '', ...props }: InputProps) {
-  const inputId = id ?? props.name
+export function Input({
+  label,
+  error,
+  id,
+  className = '',
+  containerClassName = '',
+  'aria-describedby': describedBy,
+  ...props
+}: InputProps) {
+  const generatedId = useId()
+  const inputId = id ?? props.name ?? generatedId
+  const errorId = `${inputId}-error`
+  const described = [describedBy, error ? errorId : undefined].filter(Boolean).join(' ') || undefined
+
   return (
     <div className={`flex flex-col gap-1 ${containerClassName}`}>
       {label && (
-        <label htmlFor={inputId} className="text-sm font-medium text-slate-700">
+        <label htmlFor={inputId} className={FIELD_LABEL_CLASSES}>
           {label}
         </label>
       )}
       <input
         id={inputId}
-        className={`rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 ${error ? 'border-red-400' : 'border-slate-300'} ${className}`}
+        spellCheck={props.type === 'email' ? false : undefined}
+        className={`${fieldClasses(Boolean(error))} ${className}`}
         {...props}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={described}
       />
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && (
+        <span id={errorId} role="alert" className={FIELD_ERROR_CLASSES}>
+          {error}
+        </span>
+      )}
     </div>
   )
 }

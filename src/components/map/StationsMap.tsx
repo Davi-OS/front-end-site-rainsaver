@@ -13,20 +13,22 @@ export function StationsMap({ stations }: StationsMapProps) {
       zoom={4}
       minZoom={3}
       maxZoom={10}
-      style={{ height: '520px', borderRadius: '12px' }}
-      className="z-0"
+      // Hundreds of markers: draw them on one <canvas> instead of one SVG node each.
+      preferCanvas
+      // Fluid height: tall on desktop, never taller than the viewport on short screens.
+      className="z-0 h-[50vh] max-h-[520px] min-h-72 w-full rounded-xl"
     >
       <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       />
       {stations.map((station) => (
         <CircleMarker
           key={station.code}
           center={[station.lat, station.lng]}
           radius={5}
-          fillColor="#059ee6"
-          color="#01609e"
+          fillColor="#1597b3"
+          color="#0c6679"
           weight={1}
           fillOpacity={0.7}
         >

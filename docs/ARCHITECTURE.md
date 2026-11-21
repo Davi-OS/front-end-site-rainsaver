@@ -40,11 +40,12 @@ src/
   auth/               — AuthContext.tsx, context.ts, errors.ts, useAuth.ts, ProtectedRoute.tsx
   pages/
     auth/LoginPage.tsx
-    DashboardPage.tsx, PluvialCalculatorPage.tsx, SolarCalculatorPage.tsx, SettingsPage.tsx
-    RootRedirect.tsx, NotFoundPage.tsx
+    DashboardPage.tsx (home pública), PluvialCalculatorPage.tsx, SolarCalculatorPage.tsx, SettingsPage.tsx
+    NotFoundPage.tsx
   components/
-    layout/    — AppLayout.tsx, AuthLayout.tsx, Header.tsx, SideNav.tsx
-    ui/        — primitivos: Button, Input, Select, Card, Alert, Modal, Tabs (barrel em index.ts)
+    layout/    — AppLayout.tsx, AuthLayout.tsx, Header.tsx, SideNav.tsx, Logo.tsx, PageHeader.tsx
+    ui/        — primitivos: Button, ButtonLink, Input, Select, Card, Alert, Modal, Tabs, Skeleton, StatTile, PageSpinner (barrel em index.ts)
+    ads/       — AdSlot.tsx (espaço reservado para anúncio; desligado por padrão)
     address/   — AddressForm.tsx, AddressTable.tsx
     map/       — StationsMap.tsx (Leaflet)
   lib/         — format.ts, validation.ts, viaCep.ts, authErrors.ts / apiErrors.ts (mensagens pt-BR)
@@ -57,16 +58,16 @@ src/
 
 | Path | Componente | Protegida? | Layout |
 |---|---|---|---|
-| `/` | `RootRedirect` — redireciona para `/dashboard` se autenticado, senão `/login` | n/a | nenhum |
+| `/` | `DashboardPage` — **página inicial pública** (visitante vê CTA de cadastro; logado vê o painel com seus endereços) | **não** | `AppLayout` |
 | `/login` | `LoginPage` | não | `AuthLayout` |
 | `/cadastro` | `SignupPage` | não | `AuthLayout` |
-| `/dashboard` | `DashboardPage` | **sim** | `AppLayout` |
+| `/dashboard` | redireciona para `/` (links antigos) | não | nenhum |
 | `/pluvial` | `PluvialCalculatorPage` | **sim** | `AppLayout` |
 | `/solar` | `SolarCalculatorPage` | **sim** | `AppLayout` |
 | `/settings` | `SettingsPage` | **sim** | `AppLayout` |
 | `*` | `NotFoundPage` | não | nenhum |
 
-Proteção via `<Route element={<ProtectedRoute />}>` envolvendo o grupo `AppLayout`: enquanto a sessão salva é validada (`status === 'loading'`) mostra um spinner; se anônimo, redireciona para `/login` preservando a rota tentada no state do router. Qualquer pessoa cria a conta em `/cadastro` (ver Autenticação); admins também podem criar contas pelo `go-auth-service`.
+O `AppLayout` (cabeçalho + menu) envolve a home e as features; só as features (`/pluvial`, `/solar`, `/settings`) ficam dentro de `<ProtectedRoute />`: enquanto a sessão salva é validada (`status === 'loading'`) mostra um spinner na área de conteúdo; se anônimo, redireciona para `/login` preservando a rota tentada no state do router (login e cadastro devolvem o usuário a ela). Para visitantes o menu mostra as features com cadeado e o cabeçalho tem "Entrar"/"Criar conta". A home **nunca** chama endpoints autenticados como visitante: `authorized()` sem tokens expira a sessão e mostraria o aviso "sessão expirou" no login. Qualquer pessoa cria a conta em `/cadastro` (ver Autenticação); admins também podem criar contas pelo `go-auth-service`.
 
 ## Autenticação (go-auth-service)
 
@@ -124,13 +125,17 @@ Tailwind v4, tokens em `src/index.css`:
 ```css
 @import "tailwindcss";
 @theme {
-  --color-brand-50: #eff9ff;
-  /* ... escala brand completa até --color-brand-950 */
-  --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --color-brand-50: #ecf9fc;      /* água: escala completa até --color-brand-950 (600 = #0e7c93) */
+  --color-sun-50: #fff6ee;        /* acento quente: escala até --color-sun-900 */
+  --color-canvas: #f7fbfc;        /* fundo da página */
+  --color-ink: #12303a;           /* texto do corpo */
+  --font-sans: "Noto Sans", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Nunito", system-ui, sans-serif;   /* h1–h3 */
+  /* + raios (--radius-md..2xl) e sombras tingidas; ver o arquivo */
 }
 html { color-scheme: light; }
 ```
-Sem dark mode configurado. Sem biblioteca de componentes de terceiros (nada de shadcn/ui, Ant Design, MUI) — tudo em `src/components/ui/` é feito à mão (variantes via template literals, sem `cva`/`clsx`).
+Direção visual: friendly + vibrant adaptada a água e sol; pares de cor com contraste AA (ver `docs/UI-AUDIT.md`). Fontes via Google Fonts. Sem dark mode configurado. Sem biblioteca de componentes de terceiros (nada de shadcn/ui, Ant Design, MUI) — tudo em `src/components/ui/` é feito à mão (variantes via template literals, sem `cva`/`clsx`).
 
 ## Legado — `reference/greentech-legacy`
 
@@ -150,3 +155,7 @@ Projeto anterior ("GreenTech"), mantido só como referência histórica — **n�
 2. ~~Endereços e cálculo pluvial via `rain-saver`~~ — feito (geocodificação no backend).
 3. ~~Dashboard com estações reais~~ — feito (`GET /estacoes`).
 4. Deploy: cadastrar o sistema `rain-saver` no auth da Azure (`POST /systems`), publicar o rain-saver e preencher as variáveis do repositório (ver Build & Deploy). Domínio próprio pode esperar até abrir para usuários reais. Se o ambiente da Azure for recriado, o FQDN muda, e com ele o `AUTH_ISSUER`, as `web_origins` e as `VITE_*`.
+
+## Anúncios (reserva de espaço)
+
+`components/ads/AdSlot.tsx` reserva uma caixa rotulada "Publicidade" abaixo do mapa da home. Fica **desligada** (não renderiza nada) a menos que `VITE_ADS_ENABLED=true` no build. Ligada, mostra só o espaço vazio (`data-ad-slot`), sem script de terceiros nem requisição externa. Antes de ligar de verdade são necessários: integração da rede de anúncios, banner de consentimento (LGPD), página de política de privacidade e `ads.txt`. Anúncios só na home, para não atrapalhar quem usa as calculadoras.

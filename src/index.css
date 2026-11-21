@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens. Direction: friendly + vibrant (rounded, warm, lively) adapted
+ * to a water-and-sun brand: `brand` is the water scale, `sun` the warm accent
+ * (solar, highlights). Every text/background pair used in components must keep
+ * WCAG AA (4.5:1 for small text); focus rings need 3:1.
+ */
 @theme {
-  --color-brand-50: #eff9ff;
-  --color-brand-100: #dcf2ff;
-  --color-brand-200: #b3e6ff;
-  --color-brand-300: #75d4ff;
-  --color-brand-400: #2fbdff;
-  --color-brand-500: #059ee6;
-  --color-brand-600: #0079c2;
-  --color-brand-700: #01609e;
-  --color-brand-800: #075182;
-  --color-brand-900: #0b446c;
-  --color-brand-950: #072b48;
+  /* Water — primary. 600 is the filled-button color (white text 4.86:1). */
+  --color-brand-50: #ecf9fc;
+  --color-brand-100: #d2f1f7;
+  --color-brand-200: #a8e3ef;
+  --color-brand-300: #6fcde0;
+  --color-brand-400: #36b1ca;
+  --color-brand-500: #1597b3;
+  --color-brand-600: #0e7c93;
+  --color-brand-700: #0c6679;
+  --color-brand-800: #0f5265;
+  --color-brand-900: #10434f;
+  --color-brand-950: #082a34;
 
-  --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  /* Sun — warm accent. Use 700+ for text on 50/100 surfaces. */
+  --color-sun-50: #fff6ee;
+  --color-sun-100: #fde8d4;
+  --color-sun-200: #f8d0a8;
+  --color-sun-300: #f1bd8c;
+  --color-sun-400: #eaae87;
+  --color-sun-500: #de8f55;
+  --color-sun-600: #c06a2c;
+  --color-sun-700: #9a5220;
+  --color-sun-800: #7c4019;
+  --color-sun-900: #5e3114;
+
+  /* Page background (slightly tinted, never pure white). */
+  --color-canvas: #f7fbfc;
+  /* Body text: 13:1 on canvas. */
+  --color-ink: #12303a;
+
+  --font-sans: "Noto Sans", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Nunito", system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /* Friendlier corners: components already use rounded-lg / -xl / -2xl. */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+
+  /* Soft, water-tinted elevation instead of neutral grey. */
+  --shadow-sm: 0 1px 2px 0 rgb(8 42 52 / 0.06), 0 1px 3px 0 rgb(8 42 52 / 0.08);
+  --shadow-xl: 0 20px 25px -5px rgb(8 42 52 / 0.12), 0 8px 10px -6px rgb(8 42 52 / 0.1);
 }
 
 html {
   color-scheme: light;
+  /* No double-tap zoom delay on controls. */
+  touch-action: manipulation;
+  /* Soft brand-colored flash on tap instead of the default grey box. */
+  -webkit-tap-highlight-color: rgb(14 124 147 / 0.15);
+  /* The fixed 4rem header must not cover a focused/anchored element. */
+  scroll-padding-top: 5rem;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
+  color: var(--color-ink);
+  background-color: var(--color-canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  text-wrap: balance;
+}
+
+/* Safety net until every primitive owns its focus style (phase 3): any
+ * keyboard-focused control gets a visible ring. Components that define their
+ * own focus-visible styles override this. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
