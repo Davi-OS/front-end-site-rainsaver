@@ -24,8 +24,11 @@ export function Modal({ title, open, onClose, children, footer }: ModalProps) {
     const previouslyFocused = document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     dialog.showModal()
-    // Land on the first field when there is one; otherwise keep the browser default.
-    dialog.querySelector<HTMLElement>('input, select, textarea')?.focus()
+    // Initial focus: an element marked data-autofocus (e.g. the safe choice of a
+    // destructive confirmation), else the first field, else the browser default.
+    const initialFocus =
+      dialog.querySelector<HTMLElement>('[data-autofocus]') ?? dialog.querySelector<HTMLElement>('input, select, textarea')
+    initialFocus?.focus()
     document.body.style.overflow = 'hidden'
 
     return () => {

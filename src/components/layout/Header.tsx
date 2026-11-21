@@ -1,8 +1,9 @@
 import { useEffect, useState, type Ref } from 'react'
-import { LogOut, Menu, X } from 'lucide-react'
+import { LogOut, Menu, Star, X } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import { ButtonLink, Skeleton } from '@/components/ui'
+import { useSubscription } from '@/subscription/useSubscription'
 import { Logo } from './Logo'
 
 interface HeaderProps {
@@ -13,6 +14,7 @@ interface HeaderProps {
 
 export function Header({ menuOpen, onMenuToggle, menuButtonRef }: HeaderProps) {
   const { user, status, logout } = useAuth()
+  const { isSubscriber } = useSubscription()
 
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -62,6 +64,12 @@ export function Header({ menuOpen, onMenuToggle, menuButtonRef }: HeaderProps) {
       <div className="flex min-w-0 items-center gap-2 sm:gap-4">
         {status === 'authenticated' && (
           <>
+            {isSubscriber && (
+              <span className="hidden items-center gap-1 rounded-full bg-sun-100 px-2.5 py-1 text-xs font-semibold text-sun-800 sm:inline-flex">
+                <Star className="h-3 w-3" aria-hidden="true" />
+                Assinante
+              </span>
+            )}
             {user && (
               <span className="hidden min-w-0 truncate text-sm text-slate-600 sm:inline" title={user.email}>
                 {user.email}

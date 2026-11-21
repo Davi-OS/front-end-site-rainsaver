@@ -1,13 +1,16 @@
 import { useEffect, useRef } from 'react'
-import { LayoutDashboard, Droplets, Lock, Sun, Settings } from 'lucide-react'
+import { LayoutDashboard, Droplets, Lock, Star, Sun, Settings } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import { ButtonLink } from '@/components/ui'
+import { SUBSCRIPTION_MODE } from '@/config'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Início', icon: LayoutDashboard, requiresLogin: false },
   { to: '/pluvial', label: 'Economia Pluvial', icon: Droplets, requiresLogin: true },
   { to: '/solar', label: 'Economia Solar', icon: Sun, requiresLogin: true },
+  // The subscription page is public (visitors can see the plans); it only exists while the feature is on.
+  ...(SUBSCRIPTION_MODE === 'off' ? [] : [{ to: '/assinatura', label: 'Assinatura', icon: Star, requiresLogin: false }]),
   { to: '/settings', label: 'Configurações', icon: Settings, requiresLogin: true },
 ]
 

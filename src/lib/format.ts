@@ -35,3 +35,10 @@ const decimalFormatter = new Intl.NumberFormat('pt-BR', { minimumFractionDigits:
 export function formatKWp(value: number): string {
   return `${decimalFormatter.format(value)} kWp`
 }
+
+const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
+
+/** e.g. "2026-12-21T..." -> "21 de dezembro de 2026" */
+export function formatDate(iso: string): string {
+  return dateFormatter.format(new Date(iso))
+}

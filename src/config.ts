@@ -12,3 +12,18 @@ export const AUTH_SYSTEM = 'rain-saver'
  * script is loaded by the app yet.
  */
 export const ADS_ENABLED = import.meta.env.VITE_ADS_ENABLED === 'true'
+
+/**
+ * Subscription feature switch. `off` (default, and what production builds get
+ * unless they set it): no subscription UI and nobody is a subscriber through
+ * the mock. `mock`: the "Assinatura" screens work against a local, browser-only
+ * fake (see src/subscription/mockClient.ts), for demos and development.
+ */
+export type SubscriptionMode = 'off' | 'mock'
+export const SUBSCRIPTION_MODE: SubscriptionMode = import.meta.env.VITE_SUBSCRIPTION_MODE === 'mock' ? 'mock' : 'off'
+
+/** Permission in the access token (`perms`) that marks a subscriber. Issued by the auth service (later stage). */
+export const SUBSCRIBER_PERMISSION = 'plan:subscriber'
+
+/** Mock only: make this action fail, to exercise the error states (subscribe | cancel | resume). */
+export const SUBSCRIPTION_MOCK_FAIL = import.meta.env.VITE_SUBSCRIPTION_MOCK_FAIL

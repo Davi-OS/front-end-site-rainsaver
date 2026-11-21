@@ -1,5 +1,6 @@
 import { RAINSAVER_API_URL } from '@/config'
 import type { Address, AddressInput, PluvialEconomy, SolarEconomy, Station } from '@/types'
+import type { Plan, PlanInterval } from '@/subscription/types'
 import { ApiError, requestJSON } from './http'
 import { authorized } from './session'
 
@@ -198,4 +199,45 @@ export async function latestSolarEconomy(addressId: string): Promise<SolarEconom
     if (err instanceof ApiError && err.status === 404) return null
     throw err
   }
+}
+
+interface PlanDTO {
+  id: string
+  name: string
+  /** Integer cents, so no floating point money on the wire. */
+  price_cents: number
+  currency: string
+  interval: string
+  highlight?: string | null
+}
+
+const PERIOD_LABELS: Record<PlanInterval, string> = { month: 'mês', year: 'ano' }
+
+/** Null for a plan the app can't show correctly (other currency, unknown interval, bad price). */
+function toPlan(p: PlanDTO): Plan | null {
+  const interval = p.interval === 'month' || p.interval === 'year' ? p.interval : null
+  if (!interval || p.currency !== 'BRL' || !p.id || !p.name) return null
+  if (!Number.isInteger(p.price_cents) || p.price_cents < 0) return null
+  return {
+    id: p.id,
+    name: p.name,
+    priceBRL: p.price_cents / 100,
+    interval,
+    period: PERIOD_LABELS[interval],
+    highlight: p.highlight || undefined,
+  }
+}
+
+/**
+ * The subscription plans, in display order. Public route (visitors see the
+ * prices), so no token. Plans the app can't show are dropped, not fatal.
+ */
+export async function listPlans(): Promise<Plan[]> {
+  const list = await requestJSON<PlanDTO[]>(url('/planos'))
+  const plans: Plan[] = []
+  for (const dto of Array.isArray(list) ? list : []) {
+    const plan = toPlan(dto)
+    if (plan && !plans.some((p) => p.id === plan.id)) plans.push(plan)
+  }
+  return plans
 }
