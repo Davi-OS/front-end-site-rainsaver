@@ -17,7 +17,7 @@ export function authErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     switch (err.message) {
       case 'invalid credentials':
-        return 'Email ou senha inválidos.'
+        return 'E-mail ou senha inválidos.'
       case 'user disabled':
         return 'Esta conta está desativada.'
       case 'not a member of this organization':
