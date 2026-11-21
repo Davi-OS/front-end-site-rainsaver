@@ -1,27 +1,47 @@
-import type { SelectHTMLAttributes } from 'react'
+import { useId, type SelectHTMLAttributes } from 'react'
+import { FIELD_ERROR_CLASSES, FIELD_LABEL_CLASSES, fieldClasses } from './fieldStyles'
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   error?: string
 }
 
-export function Select({ label, error, id, className = '', children, ...props }: SelectProps) {
-  const selectId = id ?? props.name
+export function Select({
+  label,
+  error,
+  id,
+  className = '',
+  children,
+  'aria-describedby': describedBy,
+  ...props
+}: SelectProps) {
+  const generatedId = useId()
+  const selectId = id ?? props.name ?? generatedId
+  const errorId = `${selectId}-error`
+  const described = [describedBy, error ? errorId : undefined].filter(Boolean).join(' ') || undefined
+
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label htmlFor={selectId} className="text-sm font-medium text-slate-700">
+        <label htmlFor={selectId} className={FIELD_LABEL_CLASSES}>
           {label}
         </label>
       )}
+      {/* Explicit background/color: native selects ignore the page theme on some OSes. */}
       <select
         id={selectId}
-        className={`rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 ${error ? 'border-red-400' : 'border-slate-300'} ${className}`}
+        className={`${fieldClasses(Boolean(error))} ${className}`}
         {...props}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={described}
       >
         {children}
       </select>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && (
+        <span id={errorId} role="alert" className={FIELD_ERROR_CLASSES}>
+          {error}
+        </span>
+      )}
     </div>
   )
 }
