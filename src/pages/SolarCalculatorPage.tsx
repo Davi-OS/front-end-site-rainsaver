@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import type { Address, SolarEconomy } from '@/types'
 import { calculateSolarEconomy, latestSolarEconomy, listAddresses } from '@/api/rainsaver'
 import { Alert, Button, Card, Input, Select, Skeleton } from '@/components/ui'
+import { AdSlot } from '@/components/ads/AdSlot'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { rainSaverErrorMessage } from '@/lib/apiErrors'
 import { formatBRL, formatKm, formatKWh, formatKWp, formatMonth } from '@/lib/format'
@@ -27,6 +28,8 @@ export function SolarCalculatorPage() {
   // Bumped after each estimate the user asks for, to bring the result into view.
   const [calculations, setCalculations] = useState(0)
   const resultHeadingRef = useRef<HTMLHeadingElement>(null)
+  // The result of the calculation the user triggered (not one preloaded for the address): that one earns an ad.
+  const [adResult, setAdResult] = useState<SolarEconomy | null>(null)
   const [fieldErrors, setFieldErrors] = useState<{ power?: string; count?: string; tariff?: string }>({})
   const formRef = useRef<HTMLFormElement>(null)
   const focusFirstError = useFocusFirstError(formRef)
@@ -130,7 +133,9 @@ export function SolarCalculatorPage() {
 
     setCalculating(true)
     try {
-      setResult(await calculateSolarEconomy(addressId, power, count, tariffValue))
+      const created = await calculateSolarEconomy(addressId, power, count, tariffValue)
+      setResult(created)
+      setAdResult(created)
       setCalculations((n) => n + 1)
     } catch (err) {
       setError(rainSaverErrorMessage(err))
@@ -234,7 +239,8 @@ export function SolarCalculatorPage() {
         </Card>
 
         {/* Always rendered so assistive tech announces the result when it appears. */}
-        <div aria-live="polite" className="w-full min-w-0">
+        <div className="w-full min-w-0">
+          <div aria-live="polite">
           {result ? (
             <Card>
               <h2 ref={resultHeadingRef} tabIndex={-1} className="text-xl font-semibold text-slate-900">
@@ -306,6 +312,11 @@ export function SolarCalculatorPage() {
             <p className="hidden rounded-2xl border-2 border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 lg:block">
               Preencha os dados e calcule: o resultado aparece aqui.
             </p>
+          )}
+          </div>
+          {/* Outside the live region (assistive tech should not read it); the key renews it on every calculation. */}
+          {result !== null && result === adResult && (
+            <AdSlot placement="solar-result" key={calculations} className="mt-4" />
           )}
         </div>
       </div>

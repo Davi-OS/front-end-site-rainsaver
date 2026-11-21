@@ -181,7 +181,7 @@ export function DashboardPage() {
         </>
       )}
 
-      <AdSlot placement="home-below-map" />
+      <AdSlot placement="home-below-map" className="mt-8" />
     </div>
   )
 }
