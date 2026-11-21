@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthContext'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -9,7 +9,6 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { PluvialCalculatorPage } from '@/pages/PluvialCalculatorPage'
 import { SolarCalculatorPage } from '@/pages/SolarCalculatorPage'
 import { SettingsPage } from '@/pages/SettingsPage'
-import { RootRedirect } from '@/pages/RootRedirect'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 function App() {
@@ -17,21 +16,22 @@ function App() {
     <AuthProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <Routes>
-          <Route path="/" element={<RootRedirect />} />
-
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/cadastro" element={<SignupPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
+          {/* The home page (dashboard) is public; only the features need an account. */}
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route element={<ProtectedRoute />}>
               <Route path="/pluvial" element={<PluvialCalculatorPage />} />
               <Route path="/solar" element={<SolarCalculatorPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>
+          {/* Old bookmarks: the dashboard now lives at the root. */}
+          <Route path="/dashboard" element={<Navigate to="/" replace />} />
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
