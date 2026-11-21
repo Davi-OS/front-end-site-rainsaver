@@ -1,3 +1,18 @@
+# RainSaver (front-end)
+
+React + TypeScript + Vite. Documentação técnica em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Desenvolvimento local sem os backends
+
+```bash
+npm run mock:api                              # fake do auth (8080) e do rain-saver (8081), só em 127.0.0.1
+VITE_SUBSCRIPTION_MODE=mock npm run dev       # em outro terminal: liga as telas de assinatura
+```
+
+Qualquer e-mail e senha entram; `assinante...` entra como assinante. Detalhes (contas de teste, planos em `dev/mock-api/plans.json`, variáveis) na seção "Assinatura e anúncios" da documentação.
+
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.

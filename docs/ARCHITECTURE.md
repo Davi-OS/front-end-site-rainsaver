@@ -59,6 +59,7 @@ src/
 | Path | Componente | Protegida? | Layout |
 |---|---|---|---|
 | `/` | `DashboardPage` — **página inicial pública** (visitante vê CTA de cadastro; logado vê o painel com seus endereços) | **não** | `AppLayout` |
+| `/assinatura` | `SubscriptionPage` — planos, assinar, cancelar (só existe com `VITE_SUBSCRIPTION_MODE=mock`; com `off` redireciona para `/`) | **não** (visitante vê os planos) | `AppLayout` |
 | `/login` | `LoginPage` | não | `AuthLayout` |
 | `/cadastro` | `SignupPage` | não | `AuthLayout` |
 | `/dashboard` | redireciona para `/` (links antigos) | não | nenhum |
@@ -156,6 +157,23 @@ Projeto anterior ("GreenTech"), mantido só como referência histórica — **n�
 3. ~~Dashboard com estações reais~~ — feito (`GET /estacoes`).
 4. Deploy: cadastrar o sistema `rain-saver` no auth da Azure (`POST /systems`), publicar o rain-saver e preencher as variáveis do repositório (ver Build & Deploy). Domínio próprio pode esperar até abrir para usuários reais. Se o ambiente da Azure for recriado, o FQDN muda, e com ele o `AUTH_ISSUER`, as `web_origins` e as `VITE_*`.
 
-## Anúncios (reserva de espaço)
+## Assinatura e anúncios
 
-`components/ads/AdSlot.tsx` reserva uma caixa rotulada "Publicidade" abaixo do mapa da home. Fica **desligada** (não renderiza nada) a menos que `VITE_ADS_ENABLED=true` no build. Ligada, mostra só o espaço vazio (`data-ad-slot`), sem script de terceiros nem requisição externa. Antes de ligar de verdade são necessários: integração da rede de anúncios, banner de consentimento (LGPD), página de política de privacidade e `ads.txt`. Anúncios só na home, para não atrapalhar quem usa as calculadoras.
+**Anúncios.** `components/ads/AdSlot.tsx` reserva uma caixa rotulada "Publicidade". Fica **desligada** (não renderiza nada) a menos que `VITE_ADS_ENABLED=true` no build; ligada, mostra só o espaço vazio (`data-ad-slot`), sem script de terceiros nem requisição externa. Aparece em dois lugares: abaixo do mapa da home e **abaixo do resultado de cada cálculo** (solar e pluvial) que o usuário dispara. A `key` do `AdSlot` é o contador de cálculos, então ele é remontado (renovado) a cada cálculo; o resultado pré-carregado ao abrir a página ou ao trocar de endereço **não** ganha anúncio, e o anúncio fica fora da região `aria-live`. **Assinante não vê anúncio em lugar nenhum**: o `AdSlot` não renderiza para ele, nem enquanto ainda se descobre se é assinante (`ready`), para o anúncio não piscar para quem paga. Antes de ligar de verdade faltam: integração da rede de anúncios, banner de consentimento (LGPD), política de privacidade e `ads.txt`.
+
+**Quem é assinante.** `useSubscription()` (`src/subscription/`) responde. `isSubscriber` é verdadeiro quando o **token de acesso traz a permissão `plan:subscriber`** em `perms` (caminho real, lido no cliente: serve para UX, nunca para autorizar algo no servidor) ou, no modo `mock`, quando o fake local tem uma assinatura ativa ou em cancelamento para o usuário. A permissão só vai existir quando o auth a emitir; um flag novo no token aparece no máximo 15 min depois (TTL do access token) ou no próximo login.
+
+**Interruptor `VITE_SUBSCRIPTION_MODE`.** `off` (padrão; produção nunca define): sem item de menu, `/assinatura` redireciona para `/`, ninguém é assinante pelo mock. `mock`: as telas funcionam contra `subscription/mockClient.ts`, um fake **só do navegador** (estado em `localStorage`, por usuário, latência de ~600 ms, renova ou encerra sozinho quando o período acaba). `VITE_SUBSCRIPTION_MOCK_FAIL=subscribe|cancel|resume` faz a ação falhar, para testar os estados de erro.
+
+**Telas (`/assinatura`).** Visitante: planos e "Criar conta"/"Já tenho conta" (voltam para a página). Logado sem assinatura: seletor de plano (radios nativos), "Assinar" e um modal de confirmação **sem campos de pagamento** e com o aviso de demonstração. Assinante: cartão de status e "Cancelar assinatura" (modal que explica que o acesso segue até o fim do período e põe o foco em "Manter assinatura"). Cancelamento agendado: aviso com a data e "Reativar assinatura". Os planos e preços **vêm do backend** (`GET /planos`, abaixo); a tela mostra carregando, erro com "Tentar de novo" e lista vazia.
+
+**Planos e preços (`GET /planos`).** Rota **pública** (visitante precisa ver os preços) no rain-saver (`VITE_RAINSAVER_API_URL`, como `/estacoes`), sem token. Resposta 200, a **ordem do array é a ordem de exibição**:
+```json
+[{ "id": "mensal", "name": "Mensal", "price_cents": 990, "currency": "BRL", "interval": "month", "highlight": null },
+ { "id": "anual",  "name": "Anual",  "price_cents": 9900, "currency": "BRL", "interval": "year", "highlight": "Mais econômico" }]
+```
+`price_cents` é inteiro (sem ponto flutuante), `interval` é `month` ou `year`, `highlight` é opcional e o plano que o traz vem selecionado por padrão (senão o primeiro). O front (`listPlans` em `api/rainsaver.ts`) **descarta sem quebrar** plano com moeda diferente de BRL, intervalo desconhecido, preço inválido ou id repetido. A assinatura guarda um **snapshot do plano contratado** (nome, preço, período): o catálogo pode mudar ou o plano sair do ar sem alterar quem já assinou. Assinar, cancelar e reativar continuam no mock do navegador; só o catálogo vem do servidor.
+
+**Servidor de mock para desenvolvimento (`dev/mock-api/`).** `npm run mock:api` sobe, só em `127.0.0.1`, um fake do auth (porta 8080) e do rain-saver (8081): login/cadastro, estações, endereços, cálculos e `GET /planos`. Fora do build e do deploy. Para ver a assinatura: `npm run mock:api` e, em outro terminal, `VITE_SUBSCRIPTION_MODE=mock npm run dev` (acrescente `VITE_ADS_ENABLED=true` para ver os anúncios). Contas de teste: qualquer e-mail e senha entram; `erro...` é recusado (401); `assinante...` recebe um token com `plan:subscriber`. O catálogo servido é `dev/mock-api/plans.json`, relido a cada requisição (edite e recarregue). Variáveis: `MOCK_AUTH_PORT`, `MOCK_RAINSAVER_PORT`, `MOCK_PLANS_MODE=error|empty` (500 ou lista vazia) e `MOCK_LATENCY_MS` (padrão 250). Em desenvolvimento o React (StrictMode) dispara o efeito duas vezes, então `/planos` aparece duas vezes no log; em produção é uma.
+
+**Caminho para a etapa dos serviços.** (0) rain-saver: implementar `GET /planos` com o contrato acima (o front já o consome); (1) auth/rain-saver: papel `subscriber` com a permissão `plan:subscriber` no catálogo do sistema `rain-saver`, concedido por quem cobra (o dono da org não consegue se conceder: a anti-escalação exige já ter as permissões do papel); (2) uma implementação "live" de `SubscriptionClient` (`subscription/client.ts`) para a cobrança, com checkout hospedado em vez de formulário próprio, escolhida em `subscription/store.ts`; (3) remover o mock e o modo `mock`.
