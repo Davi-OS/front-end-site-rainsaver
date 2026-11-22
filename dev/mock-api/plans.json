@@ -1,0 +1,4 @@
+[
+  { "id": "mensal", "name": "Mensal", "price_cents": 990, "currency": "BRL", "interval": "month", "highlight": null },
+  { "id": "anual", "name": "Anual", "price_cents": 9900, "currency": "BRL", "interval": "year", "highlight": "Mais econômico" }
+]

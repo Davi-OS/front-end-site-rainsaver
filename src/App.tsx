@@ -9,6 +9,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { PluvialCalculatorPage } from '@/pages/PluvialCalculatorPage'
 import { SolarCalculatorPage } from '@/pages/SolarCalculatorPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { SubscriptionPage } from '@/pages/SubscriptionPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
           {/* The home page (dashboard) is public; only the features need an account. */}
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/assinatura" element={<SubscriptionPage />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/pluvial" element={<PluvialCalculatorPage />} />
               <Route path="/solar" element={<SolarCalculatorPage />} />
